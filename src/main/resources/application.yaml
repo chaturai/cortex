@@ -1,3 +1,13 @@
 spring:
   application:
     name: cortex
+
+cortex:
+  ingest:
+    enabled: true
+  lint:
+    enabled: true
+  query:
+    enabled: true
+  reason:
+    enabled: true
