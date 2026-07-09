@@ -6,13 +6,13 @@ import org.apache.jena.rdf.model.ResourceFactory
 
 class CortexResourceFactory(dataset: Dataset) {
 
-  private val GRAPH = dataset.prefixMapping.getNsPrefixURI("g")
-  private val ONTOLOGY = dataset.prefixMapping.getNsPrefixURI("o")
-  private val DATA = dataset.prefixMapping.getNsPrefixURI("")
+  private val graphNamespace = dataset.prefixMapping.getNsPrefixURI("g")
+  private val ontologyNamespace = dataset.prefixMapping.getNsPrefixURI("o")
+  private val instanceNamespace = dataset.prefixMapping.getNsPrefixURI("i")
 
-  fun getGraph(id: String): Resource = ResourceFactory.createResource(GRAPH + id)
+  fun getGraph(id: String): Resource = ResourceFactory.createResource(graphNamespace + id)
 
-  fun getOntology(id: String): Resource = ResourceFactory.createResource(ONTOLOGY + id)
+  fun getOntology(id: String): Resource = ResourceFactory.createResource(ontologyNamespace + id)
 
-  fun getData(id: String): Resource = ResourceFactory.createResource(DATA + id)
+  fun getInstance(id: String): Resource = ResourceFactory.createResource(instanceNamespace + id)
 }

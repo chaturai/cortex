@@ -12,7 +12,7 @@ class CortexConfiguration {
 
   @Bean
   fun dataset(@Value("assembler.ttl") assembler: Resource): Dataset {
-    return DatasetFactory.assemble(assembler.file.canonicalPath)
+    return DatasetFactory.assemble(assembler.file.canonicalPath, "cortex://textDataset")
   }
 
   @Bean
