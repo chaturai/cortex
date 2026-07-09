@@ -47,7 +47,7 @@ tdb2:GraphTDB2 rdfs:subClassOf ja:Model .
 
 # Configure Lucene
 :index a text:TextIndexLucene ;
-    text:directory <file:.cortex/index> ;
+    text:directory ".cortex/index" ;
     text:entityMap :entityMap ;
     text:storeValues true ;
     text:analyzer [ a text:StandardAnalyzer ] ;
