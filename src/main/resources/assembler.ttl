@@ -1,0 +1,53 @@
+@prefix ja: <http://jena.hpl.hp.com/2005/11/Assembler#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix tdb2: <http://jena.apache.org/2016/tdb#> .
+@prefix text: <http://jena.apache.org/text#> .
+
+@prefix : <cortex://> .
+@prefix graph: <cortex://graph/> .
+@prefix ontologies: <classpath:/ontologies/> .
+
+:tdbDataset a tdb2:DatasetTDB ;
+    tdb2:location ".cortex/data" ;
+    tdb2:unionDefaultGraph true .
+
+:ontologies a ja:MemoryModel ;
+    ja:content [ ja:externalContent <ontologies/core.ttl> ] ;
+    ja:content [ ja:externalContent <ontologies/agent.ttl> ] ;
+    ja:content [ ja:externalContent <ontologies/task.ttl> ] .
+
+:instances a tdb2:GraphTDB2 ;
+    tdb2:dataset :tdbDataset ;
+    tdb2:graphName graph:instances .
+
+:inferences a ja:InfModel ;
+    ja:baseModel :instances ;
+    ja:reasoner :reasoner .
+
+:reasoner a ja:ReasonerFactory ;
+    ja:reasonerURL <http://jena.hpl.hp.com/2003/GenericRuleReasoner> ;
+    ja:rulesFrom <rules/core.ttl> ;
+    ja:schema :ontologies .
+
+:dataset a ja:RDFDataset ;
+    ja:defaultGraph :ontologies ;
+    ja:namedGraph [ ja:graphName graph:instances ; ja:graph :instances ] ;
+    ja:namedGraph [ ja:graphName graph:inferences ; ja:graph :inferences ] .
+
+:indexDataset a text:TextDataset ;
+    text:dataset :dataset ;
+    text:index :index .
+
+:index a text:TextIndexLucene ;
+    text:directory ".cortex/index" ;
+    text:entityMap :entityMap .
+
+:entityMap a text:EntityMap ;
+    text:entityField "uri" ;
+    text:defaultField "text" ;
+    text:uidField "uid" ;
+    text:map (
+        [ text:field "text" ; text:predicate rdfs:label ; ]
+        [ text:field "comment" ; text:predicate rdfs:comment ; ]
+    ) .

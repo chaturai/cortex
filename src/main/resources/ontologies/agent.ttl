@@ -1,0 +1,30 @@
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+
+@prefix : <cortex://ontology/> .
+
+:Agent a owl:Class ;
+    rdfs:label "Agent" .
+
+:HumanAgent a owl:Class ;
+    rdfs:subClassOf :Agent ;
+    rdfs:label "Human Agent" .
+
+:AutonomousAgent a owl:Class ;
+    rdfs:subClassOf :Agent ;
+    rdfs:label "Autonomous Agent" .
+
+:TrustedAgent a owl:Class ;
+    rdfs:subClassOf :Agent ;
+    rdfs:label "Trusted Agent" ;
+    rdfs:comment "An agent cleared to work on critical tasks." .
+
+:collaboratesWith a owl:ObjectProperty, owl:SymmetricProperty ;
+    rdfs:domain :Agent ;
+    rdfs:range :Agent ;
+    rdfs:label "collaborates with" .
+
+:supervises a owl:ObjectProperty ;
+    rdfs:domain :Agent ;
+    rdfs:range :Agent ;
+    rdfs:label "supervises" .

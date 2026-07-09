@@ -1,0 +1,29 @@
+# Cortex inference rules (Jena GenericRuleReasoner syntax).
+# Schema patterns (rdfs:subClassOf, domains/ranges, property characteristics) match
+# against the ontology graph bound via Reasoner.bindSchema; instance patterns match
+# the instances graph. Note: rule @prefix lines take no trailing dot.
+
+@prefix agent: <cortex://ontology/agent#>
+@prefix task:  <cortex://ontology/task#>
+
+# --- RDFS-style structural rules driven by the ontology schema ---
+
+[subClass:   (?x rdf:type ?c1) (?c1 rdfs:subClassOf ?c2) -> (?x rdf:type ?c2)]
+
+[domain:     (?p rdfs:domain ?c) (?x ?p ?y) -> (?x rdf:type ?c)]
+
+[range:      (?p rdfs:range ?c) (?x ?p ?y) -> (?y rdf:type ?c)]
+
+[symmetric:  (?p rdf:type owl:SymmetricProperty) (?a ?p ?b) -> (?b ?p ?a)]
+
+[transitive: (?p rdf:type owl:TransitiveProperty) (?a ?p ?b) (?b ?p ?c) -> (?a ?p ?c)]
+
+# --- Domain rules joining schema and instances ---
+
+# Anyone assigned to a critical task is considered a trusted agent.
+[criticalAssignee: (?t rdf:type task:CriticalTask) (?t task:assignedTo ?a)
+                   -> (?a rdf:type agent:TrustedAgent)]
+
+# A supervisor is accountable for the tasks assigned to their reports.
+[delegatedOversight: (?s agent:supervises ?a) (?t task:assignedTo ?a)
+                     -> (?t task:assignedTo ?s)]
