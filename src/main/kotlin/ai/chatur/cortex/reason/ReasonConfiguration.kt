@@ -7,4 +7,4 @@ import org.springframework.context.annotation.Configuration
 @Configuration
 @ConditionalOnProperty(value = ["cortex.reason.enabled"])
 @ComponentScan("cortex.reason")
-class ReasonConfiguration {}
+class ReasonConfiguration

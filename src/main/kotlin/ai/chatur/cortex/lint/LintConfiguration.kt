@@ -7,4 +7,4 @@ import org.springframework.context.annotation.Configuration
 @Configuration
 @ConditionalOnProperty(value = ["cortex.lint.enabled"])
 @ComponentScan("cortex.lint")
-class LintConfiguration {}
+class LintConfiguration

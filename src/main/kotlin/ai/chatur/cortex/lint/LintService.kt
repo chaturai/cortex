@@ -1,3 +1,5 @@
 package ai.chatur.cortex.lint
 
-class LintService(private val repository: LintRepository) {}
+import org.springframework.stereotype.Service
+
+@Service class LintService(private val repository: LintRepository)

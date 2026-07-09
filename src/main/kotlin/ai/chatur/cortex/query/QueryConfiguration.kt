@@ -7,4 +7,4 @@ import org.springframework.context.annotation.Configuration
 @Configuration
 @ConditionalOnProperty(value = ["cortex.query.enabled"])
 @ComponentScan("cortex.query")
-class QueryConfiguration {}
+class QueryConfiguration

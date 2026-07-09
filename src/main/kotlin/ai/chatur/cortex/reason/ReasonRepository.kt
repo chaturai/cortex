@@ -1,3 +1,6 @@
 package ai.chatur.cortex.reason
 
-class ReasonRepository {}
+import org.apache.jena.query.Dataset
+import org.springframework.stereotype.Repository
+
+@Repository class ReasonRepository(private val dataset: Dataset)

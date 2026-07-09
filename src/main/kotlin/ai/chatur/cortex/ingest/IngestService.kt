@@ -1,3 +1,5 @@
 package ai.chatur.cortex.ingest
 
-class IngestService(private val repository: IngestRepository) {}
+import org.springframework.stereotype.Service
+
+@Service class IngestService(private val repository: IngestRepository)

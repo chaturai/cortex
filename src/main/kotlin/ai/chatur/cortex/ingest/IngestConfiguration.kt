@@ -7,4 +7,4 @@ import org.springframework.context.annotation.Configuration
 @Configuration
 @ConditionalOnProperty(value = ["cortex.ingest.enabled"])
 @ComponentScan("cortex.ingest")
-class IngestConfiguration {}
+class IngestConfiguration

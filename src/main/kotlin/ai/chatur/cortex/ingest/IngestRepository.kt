@@ -1,3 +1,6 @@
 package ai.chatur.cortex.ingest
 
-class IngestRepository {}
+import org.apache.jena.query.Dataset
+import org.springframework.stereotype.Repository
+
+@Repository class IngestRepository(private val dataset: Dataset)

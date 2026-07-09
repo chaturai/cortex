@@ -1,3 +1,5 @@
 package ai.chatur.cortex.reason
 
-class ReasonService(private val repository: ReasonRepository) {}
+import org.springframework.stereotype.Service
+
+@Service class ReasonService(private val repository: ReasonRepository)
