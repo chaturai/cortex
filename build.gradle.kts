@@ -46,10 +46,11 @@ dependencies {
 
   // Apache Jena
   implementation(platform("org.apache.jena:jena-bom:6.1.0"))
-  implementation("org.apache.jena:jena-ontapi")
   implementation("org.apache.jena:jena-tdb2")
-  implementation("org.apache.jena:jena-text")
+  implementation("org.apache.jena:jena-ontapi")
+  implementation("org.apache.jena:jena-rdfpatch")
   implementation("org.apache.jena:jena-shacl")
+  implementation("org.apache.jena:jena-text")
 
   // Testing
   testRuntimeOnly("org.junit.platform:junit-platform-launcher")
