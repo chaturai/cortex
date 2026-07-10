@@ -7,7 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig
 
 @SpringJUnitConfig(DatasetConfiguration::class)
-class DatasetConfigurationTest {
+class CoreTest {
 
   @Autowired private lateinit var ds: Dataset
 

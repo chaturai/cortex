@@ -8,9 +8,8 @@ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig
 
 @SpringJUnitConfig(classes = [DatasetConfiguration::class, LintConfiguration::class])
 @TestPropertySource(properties = ["cortex.lint.enabled=true"])
-class LintConfigurationTest {
+class LintTest {
 
-  @Autowired private lateinit var repository: LintRepository
   @Autowired private lateinit var service: LintService
 
   @Test fun contextLoads() {}
