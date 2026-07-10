@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Configuration
 @Configuration
 @ConditionalOnProperty(value = ["cortex.query.enabled"])
 class QueryConfiguration {
-  @Bean fun queryRepository(dataset: Dataset): QueryRepository = QueryRepository(dataset)
+  @Bean fun queryRepository(dataset: Dataset): QueryRepository = QueryRepository(dataset, 1000)
 
   @Bean fun queryService(repository: QueryRepository): QueryService = QueryService(repository)
 }

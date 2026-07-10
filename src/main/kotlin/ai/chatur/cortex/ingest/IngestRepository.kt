@@ -1,22 +1,15 @@
 package ai.chatur.cortex.ingest
 
-import java.util.UUID
+import ai.chatur.cortex.core.CortexGraphs.INSTANCES
+import ai.chatur.cortex.core.CortexGraphs.getGraphNode
 import org.apache.jena.graph.Graph
 import org.apache.jena.graph.Node
-import org.apache.jena.graph.NodeFactory
 import org.apache.jena.rdfpatch.RDFPatchOps
 import org.apache.jena.rdfpatch.changes.RDFChangesCollector
 import org.apache.jena.sparql.core.DatasetGraph
 import org.apache.jena.system.Txn
 
 class IngestRepository(private val dsg: DatasetGraph) {
-  private companion object {
-    const val NS = "cortex://graph/"
-    val INSTANCES = getGraphNode("instances")
-
-    fun getGraphNode(id: String = UUID.randomUUID().toString()): Node =
-        NodeFactory.createURI(NS + id)
-  }
 
   fun stage(graph: Graph): Node {
     val graphName = getGraphNode()
