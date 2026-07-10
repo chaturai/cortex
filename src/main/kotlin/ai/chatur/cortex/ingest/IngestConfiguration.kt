@@ -1,5 +1,7 @@
 package ai.chatur.cortex.ingest
 
+import ai.chatur.cortex.core.getPaths
+import ai.chatur.cortex.reason.ReasonRepository
 import org.apache.jena.ontapi.OntModelFactory
 import org.apache.jena.ontapi.OntSpecification
 import org.apache.jena.ontapi.model.OntModel
@@ -8,11 +10,11 @@ import org.apache.jena.riot.RDFDataMgr
 import org.apache.jena.shacl.ShaclValidator
 import org.apache.jena.shacl.Shapes
 import org.apache.jena.sparql.graph.GraphFactory
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.core.io.Resource
 
 @Configuration
 @EnableConfigurationProperties(IngestProperties::class)
@@ -26,9 +28,14 @@ class IngestConfiguration {
   }
 
   @Bean
-  fun ontologyRepository(ingestProperties: IngestProperties): OntologyRepository {
+  @Qualifier("ontology")
+  fun ontModel(ingestProperties: IngestProperties): OntModel {
     val paths = getPaths(ingestProperties.ontologiesPath, ingestProperties.ontologies)
-    val model = getOntModel(paths)
+    return getOntModel(paths)
+  }
+
+  @Bean
+  fun ontologyRepository(@Qualifier("ontology") model: OntModel): OntologyRepository {
     return OntologyRepository(model)
   }
 
@@ -44,19 +51,15 @@ class IngestConfiguration {
   fun ingestService(
       ingestRepository: IngestRepository,
       ontologyRepository: OntologyRepository,
+      reasonRepository: ReasonRepository,
       validatorService: ValidatorService,
-  ): IngestService = IngestService(ingestRepository, ontologyRepository, validatorService)
+  ): IngestService =
+      IngestService(ingestRepository, ontologyRepository, reasonRepository, validatorService)
 
   private fun getOntModel(paths: List<String>): OntModel {
     val model = OntModelFactory.createModel(OntSpecification.OWL2_FULL_MEM)
     paths.forEach { RDFDataMgr.read(model, it) }
     return model
-  }
-
-  private fun getPaths(resource: Resource, filter: List<String>): List<String> {
-    require(resource.isFile) { "$resource is not a file" }
-    return resource.file.listFiles { filter.contains(it.name) }?.map { it.absolutePath }
-        ?: emptyList()
   }
 
   private fun getShaclValidator(): ShaclValidator {

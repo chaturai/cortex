@@ -1,13 +1,17 @@
 package ai.chatur.cortex.ingest
 
+import ai.chatur.cortex.core.CortexGraphs.getGraphNode
+import ai.chatur.cortex.reason.ReasonRepository
 import java.io.ByteArrayOutputStream
 import org.apache.jena.graph.Graph
+import org.apache.jena.rdfpatch.RDFPatchOps
 import org.apache.jena.shacl.ValidationReport
 import org.apache.jena.shacl.lib.ShLib
 
 class IngestService(
     private val ingestRepository: IngestRepository,
     private val ontologyRepository: OntologyRepository,
+    private val reasonRepository: ReasonRepository,
     private val validatorService: ValidatorService,
 ) {
 
@@ -19,6 +23,18 @@ class IngestService(
     } else {
       return StageResponse(valid = false, graphName = null, errors = getErrors(validationReport))
     }
+  }
+
+  fun approve(graphName: String) {
+    val patch = ingestRepository.merge(getGraphNode(graphName))
+    reasonRepository.computeInference()
+    RDFPatchOps.write(System.out, patch)
+  }
+
+  fun revert(graphName: String) {
+    val patch = ingestRepository.merge(getGraphNode(graphName), revert = true)
+    reasonRepository.computeInference()
+    RDFPatchOps.write(System.out, patch)
   }
 
   private fun getErrors(validationReport: ValidationReport): String? {

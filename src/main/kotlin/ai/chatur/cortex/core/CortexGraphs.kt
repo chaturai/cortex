@@ -8,5 +8,6 @@ object CortexGraphs {
   const val NS = "cortex://graph/"
   val INSTANCES = getGraphNode("instances")
 
-  fun getGraphNode(id: String = UUID.randomUUID().toString()): Node = NodeFactory.createURI(NS + id)
+  fun getGraphNode(id: String = UUID.randomUUID().toString()): Node =
+      NodeFactory.createURI(NS + id.removePrefix(NS))
 }
