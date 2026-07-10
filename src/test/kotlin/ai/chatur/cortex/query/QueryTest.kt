@@ -8,9 +8,8 @@ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig
 
 @SpringJUnitConfig(classes = [DatasetConfiguration::class, QueryConfiguration::class])
 @TestPropertySource(properties = ["cortex.query.enabled=true"])
-class QueryConfigurationTest {
+class QueryTest {
 
-  @Autowired private lateinit var repository: QueryRepository
   @Autowired private lateinit var service: QueryService
 
   @Test fun contextLoads() {}
