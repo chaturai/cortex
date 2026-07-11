@@ -15,7 +15,13 @@ tasks {
 dependencies {
   implementation(project(":cortex-core"))
 
-  testImplementation(platform("org.junit:junit-bom:6.0.0"))
+  implementation(platform(libs.spring.boot.dependencies))
+  implementation("org.springframework.boot:spring-boot-autoconfigure")
+
+  implementation(platform(libs.spring.ai.bom))
+  implementation("org.springframework.ai:spring-ai-starter-mcp-server-webmvc")
+
+  testImplementation(platform(libs.junit.bom))
   testImplementation("org.junit.jupiter:junit-jupiter")
   testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
