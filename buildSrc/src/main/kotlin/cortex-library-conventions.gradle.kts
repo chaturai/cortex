@@ -31,7 +31,7 @@ mavenPublishing {
         }
         developers {
             developer {
-                id.set("ajayviswanathan")
+                id.set("ajatix")
                 name.set("Ajay Viswanathan")
                 email.set("ajay.viswanathan@gmail.com")
             }
