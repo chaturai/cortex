@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+  <head th:replace="~{fragments :: head('Branches')}"></head>
+  <body>
+    <nav th:replace="~{fragments :: navbar}"></nav>
+    <main>
+      <div class="branches-container">
+        <div class="branches-list">
+          <div class="branch-item" th:each="branch : ${branches}">
+            <a class="branch-link" th:href="@{/branches/{branch}(branch=${branch})}" th:text="${branch}"></a>
+            <div class="branch-actions">
+              <form method="post" th:action="@{/branches/{branch}/approve(branch=${branch})}" class="action-form">
+                <button type="submit" class="btn btn-approve">Approve</button>
+              </form>
+              <form method="post" th:action="@{/branches/{branch}/reject(branch=${branch})}" class="action-form">
+                <button type="submit" class="btn btn-delete">Reject</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>

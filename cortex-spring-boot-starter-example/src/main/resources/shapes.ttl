@@ -2,24 +2,24 @@
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix sh:   <http://www.w3.org/ns/shacl#> .
 
+@prefix : <cortex://ontology/> .
 @prefix s: <cortex://shapes/> .
-@prefix o: <cortex://ontology/> .
 
 # Common constraints for every assertion node
 s:AssertionShape a sh:NodeShape ;
     # Reach every assertion node: anything typed, and anything using a known property
     sh:targetSubjectsOf rdf:type ;
-    sh:targetSubjectsOf o:hasCondition ;
+    sh:targetSubjectsOf :hasCondition ;
 
     sh:nodeKind sh:IRI ;
-    sh:pattern "^cortex://assertions/" ;
-    sh:message "assertions must use cortex://assertions/ namespace" ;
+    sh:pattern "^cortex://[^/?#]+$" ;
+    sh:message "assertions must be cortex://{name} IRIs without sub-paths" ;
 
     # Reject unknown classes; every assertion must be typed
     sh:property [
         sh:path rdf:type ;
         sh:minCount 1 ;
-        sh:in ( o:Rule o:Condition ) ;
+        sh:in ( :Rule :Condition ) ;
         sh:message "unknown class: only cortex://ontology/ classes are allowed" ;
     ] ;
 
@@ -38,7 +38,7 @@ s:AssertionShape a sh:NodeShape ;
     ] .
 
 s:RuleShape a sh:NodeShape ;
-    sh:targetClass o:Rule ;
+    sh:targetClass :Rule ;
 
     # Close the shape: reject any properties not declared below
     sh:closed true ;
@@ -47,14 +47,14 @@ s:RuleShape a sh:NodeShape ;
     sh:property [ sh:path rdfs:comment ] ;
 
     sh:property [
-        sh:path o:hasCondition ;
-        sh:class o:Condition ;
+        sh:path :hasCondition ;
+        sh:class :Condition ;
         sh:minCount 1 ;
         sh:message "a Rule must have at least one Condition" ;
     ] .
 
 s:ConditionShape a sh:NodeShape ;
-    sh:targetClass o:Condition ;
+    sh:targetClass :Condition ;
 
     # Conditions carry nothing beyond type, label, and comment
     sh:closed true ;

@@ -1,7 +1,6 @@
 package ai.chatur.cortex;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.List;
 
 public interface Cortex {
@@ -12,11 +11,15 @@ public interface Cortex {
 
   List<String> listBranches();
 
-  boolean hasBranch(String uri);
+  boolean hasBranch(String branch);
 
-  boolean approve(String branch);
+  String getBranch(String branch) throws IOException;
 
-  boolean reject(String branch);
+  void approve(String branch);
 
-  void writeAssertions(OutputStream os);
+  void reject(String branch);
+
+  String getAssertions() throws IOException;
+
+  String describe(String id) throws IOException;
 }

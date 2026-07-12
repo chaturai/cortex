@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+  <head th:fragment="head(title)">
+    <title th:text="${title}">Cortex</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono&display=swap"
+      rel="stylesheet" />
+    <link th:href="@{/css/cortex.css}" rel="stylesheet" />
+  </head>
+
+  <nav th:fragment="navbar">
+    <div class="navbar-container">
+      <a class="navbar-brand" href="/">Cortex</a>
+      <ul class="navbar-menu">
+        <li><a href="/assertions">Assertions</a></li>
+        <li><a href="/ontology">Ontology</a></li>
+        <li><a href="/branches">Branches</a></li>
+      </ul>
+    </div>
+  </nav>
+</html>
