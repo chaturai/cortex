@@ -9,5 +9,4 @@ spring:
         instructions: Use this MCP for knowledge graph operations
 
 cortex:
-  ingest:
-    persistent: true
+  persistent: true

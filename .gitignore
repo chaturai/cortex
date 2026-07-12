@@ -41,3 +41,6 @@ out/
 
 ### Cortex ###
 .cortex/
+
+### Claude Code ###
+.claude
