@@ -1,9 +1,15 @@
 plugins {
   id("cortex-library-conventions")
+  `jacoco-report-aggregation`
 }
+
+description =
+  "Spring Boot auto-configuration for Cortex, including an MCP server exposing the knowledge graph to AI agents"
 
 dependencies {
   implementation(project(":cortex-core"))
+
+  implementation(libs.slf4j.api)
 
   implementation(platform(libs.spring.boot.dependencies))
   implementation("org.springframework.boot:spring-boot-autoconfigure")
