@@ -10,6 +10,18 @@
     <link th:href="@{/css/cortex.css}" rel="stylesheet" />
   </head>
 
+  <li th:fragment="classNode(ontClass)" class="class-node">
+    <a
+      class="class-link"
+      th:href="@{/assertions(type=${ontClass.name})}"
+      th:text="${ontClass.name}"></a>
+    <ul class="class-tree" th:if="${!ontClass.subClasses.isEmpty()}">
+      <th:block th:each="subClass : ${ontClass.subClasses}">
+        <li th:replace="~{fragments :: classNode(${subClass})}"></li>
+      </th:block>
+    </ul>
+  </li>
+
   <nav th:fragment="navbar">
     <div class="navbar-container">
       <a class="navbar-brand" href="/">Cortex</a>

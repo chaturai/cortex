@@ -9,6 +9,11 @@
 
 :Condition a owl:Class .
 
+:PositiveCondition a owl:Class ;
+    rdfs:subClassOf :Condition .
+
 :hasCondition a owl:ObjectProperty ;
     rdfs:domain :Rule ;
     rdfs:range :Condition .
+
+

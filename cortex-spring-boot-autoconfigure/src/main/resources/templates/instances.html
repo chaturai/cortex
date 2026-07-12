@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+  <head th:replace="~{fragments :: head('Assertions')}"></head>
+  <body>
+    <nav th:replace="~{fragments :: navbar}"></nav>
+    <main>
+      <div class="instances-container">
+        <h1 th:text="${type}"></h1>
+        <ul class="instance-list" th:if="${!instances.isEmpty()}">
+          <li class="instance-item" th:each="instance : ${instances}">
+            <a
+              class="instance-link"
+              th:href="@{'/assertions/' + ${instance}}"
+              th:text="${instance}"></a>
+          </li>
+        </ul>
+        <p class="instances-empty" th:if="${instances.isEmpty()}">No instances of this class.</p>
+      </div>
+    </main>
+  </body>
+</html>
