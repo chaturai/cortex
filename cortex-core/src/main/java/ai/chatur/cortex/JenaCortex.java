@@ -1,6 +1,8 @@
 package ai.chatur.cortex;
 
 import java.io.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
@@ -74,6 +76,21 @@ public class JenaCortex implements Cortex {
       return new IngestResult(true, graphNode.getURI(), null);
     }
     return new IngestResult(false, null, getErrors(validationReport));
+  }
+
+  @Override
+  public List<String> listBranches() {
+    List<String> branches = new ArrayList<>();
+    Txn.executeRead(
+        assertions,
+        () ->
+            assertions
+                .listGraphNodes()
+                .forEachRemaining(
+                    (node) -> {
+                      branches.add(node.getURI());
+                    }));
+    return branches;
   }
 
   @Override

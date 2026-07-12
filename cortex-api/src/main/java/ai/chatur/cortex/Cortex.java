@@ -2,12 +2,15 @@ package ai.chatur.cortex;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.List;
 
 public interface Cortex {
 
   String getOntology() throws IOException;
 
   IngestResult ingest(String ttl) throws IOException;
+
+  List<String> listBranches();
 
   boolean hasBranch(String uri);
 
