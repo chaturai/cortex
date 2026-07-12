@@ -4,11 +4,19 @@ import com.vanniktech.maven.publish.JavadocJar
 plugins {
     id("cortex-common-conventions")
     `java-library`
+    jacoco
     id("com.vanniktech.maven.publish")
 }
 
 tasks.withType<Javadoc> {
     (options as StandardJavadocDocletOptions).addBooleanOption("Xdoclint:none", true)
+}
+
+tasks.test { finalizedBy(tasks.jacocoTestReport) }
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports { xml.required = true }
 }
 
 mavenPublishing {
