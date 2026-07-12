@@ -1,48 +1,62 @@
 package ai.chatur.cortex;
 
 import java.io.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
-import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.ontapi.model.OntModel;
-import org.apache.jena.query.Dataset;
+import org.apache.jena.query.*;
+import org.apache.jena.rdf.model.Model;
+import org.apache.jena.rdf.model.ModelFactory;
+import org.apache.jena.rdf.model.Resource;
+import org.apache.jena.rdf.model.ResourceFactory;
+import org.apache.jena.rdfpatch.RDFPatch;
+import org.apache.jena.rdfpatch.RDFPatchOps;
+import org.apache.jena.rdfpatch.changes.RDFChangesCollector;
 import org.apache.jena.riot.Lang;
 import org.apache.jena.riot.RDFDataMgr;
 import org.apache.jena.shacl.ShaclValidator;
 import org.apache.jena.shacl.Shapes;
 import org.apache.jena.shacl.ValidationReport;
 import org.apache.jena.shacl.lib.ShLib;
-import org.apache.jena.sparql.core.DatasetGraph;
-import org.apache.jena.sparql.graph.GraphFactory;
+import org.apache.jena.sparql.core.Quad;
 import org.apache.jena.system.Txn;
 
 public class JenaCortex implements Cortex {
-  DatasetGraph assertions;
+  Dataset assertions;
   OntModel ontModel;
   ShaclValidator shaclValidator;
   Shapes shapes;
 
-  public JenaCortex(Dataset ds, OntModel ontModel, ShaclValidator shaclValidator, Shapes shapes) {
-    this.assertions = ds.asDatasetGraph();
+  public JenaCortex(
+      Dataset assertions, OntModel ontModel, ShaclValidator shaclValidator, Shapes shapes) {
+    Txn.executeWrite(
+        assertions, () -> assertions.getDefaultModel().setNsPrefixes(ontModel.getNsPrefixMap()));
+    this.assertions = assertions;
     this.ontModel = ontModel;
     this.shaclValidator = shaclValidator;
     this.shapes = shapes;
   }
 
-  public static String NS = "cortex://branches/";
+  public static String NS = "cortex://";
 
-  Node getGraphNode(String branch) {
-    return NodeFactory.createURI(NS + branch);
+  Resource getResource(String branch) {
+    return ResourceFactory.createResource(NS + branch);
   }
 
-  Node getGraphNode() {
+  Resource getResource() {
     UUID uuid = UUID.randomUUID();
-    return getGraphNode(uuid.toString());
+    return getResource("branch-" + uuid);
   }
 
-  ValidationReport validate(Graph graph) {
-    return shaclValidator.validate(shapes, graph);
+  Node getNode(String id) {
+    return NodeFactory.createURI(NS + id);
+  }
+
+  ValidationReport validate(Model model) {
+    return shaclValidator.validate(shapes, model.getGraph());
   }
 
   String getErrors(ValidationReport validationReport) throws IOException {
@@ -65,44 +79,144 @@ public class JenaCortex implements Cortex {
   @Override
   public IngestResult ingest(String ttl) throws IOException {
     StringReader reader = new StringReader(ttl);
-    Node graphNode = getGraphNode();
-    Graph graph = GraphFactory.createDefaultGraph();
-    RDFDataMgr.read(graph, reader, null, Lang.TTL);
-    ValidationReport validationReport = validate(graph);
+    Resource namedModel = getResource();
+    Model model = ModelFactory.createDefaultModel();
+    RDFDataMgr.read(model, reader, null, Lang.TTL);
+    ValidationReport validationReport = validate(model);
     if (validationReport.conforms()) {
-      Txn.executeWrite(assertions, () -> assertions.addGraph(graphNode, graph));
-      return new IngestResult(true, graphNode.getURI(), null);
+      Txn.executeWrite(assertions, () -> assertions.addNamedModel(namedModel, model));
+      return new IngestResult(true, namedModel.getLocalName(), null);
     }
     return new IngestResult(false, null, getErrors(validationReport));
   }
 
   @Override
-  public boolean hasBranch(String uri) {
-    Node graphNode = NodeFactory.createURI(uri);
-    return Txn.calculateRead(assertions, () -> assertions.containsGraph(graphNode));
+  public List<String> listBranches() {
+    List<String> branches = new ArrayList<>();
+    Txn.executeRead(
+        assertions,
+        () ->
+            assertions
+                .listModelNames()
+                .forEachRemaining(
+                    (node) -> {
+                      branches.add(node.getLocalName());
+                    }));
+    return branches;
   }
 
   @Override
-  public boolean approve(String branch) {
-    return false;
+  public boolean hasBranch(String branch) {
+    Resource namedModel = getResource(branch);
+    return Txn.calculateRead(assertions, () -> assertions.containsNamedModel(namedModel));
   }
 
   @Override
-  public boolean reject(String branch) {
-    return Txn.calculateWrite(
+  public String getBranch(String branch) throws IOException {
+    Resource namedModel = getResource(branch);
+    StringWriter writer = new StringWriter();
+    try (writer) {
+      Txn.executeRead(
+          assertions,
+          () -> {
+            Model model = assertions.getNamedModel(namedModel);
+            model.write(writer, "TTL");
+          });
+      return writer.toString();
+    }
+  }
+
+  @Override
+  public void approve(String branch) {
+    if (hasBranch(branch)) {
+      RDFChangesCollector collector = new RDFChangesCollector();
+      Resource namedModel = getResource(branch);
+      collector.txnBegin();
+      Txn.executeRead(
+          assertions,
+          () ->
+              assertions.getNamedModel(namedModel).getGraph().stream()
+                  .forEach(
+                      triple -> {
+                        collector.add(
+                            Quad.defaultGraphIRI,
+                            triple.getSubject(),
+                            triple.getPredicate(),
+                            triple.getObject());
+                      }));
+      collector.txnCommit();
+      RDFPatch patch = collector.getRDFPatch();
+      RDFPatchOps.applyChange(assertions.asDatasetGraph(), patch);
+      Txn.executeWrite(assertions, () -> assertions.removeNamedModel(namedModel));
+    }
+  }
+
+  @Override
+  public void reject(String branch) {
+    if (hasBranch(branch)) {
+      Txn.calculateWrite(
+          assertions,
+          () -> {
+            Resource namedModel = getResource(branch);
+            assertions.removeNamedModel(namedModel);
+            return true;
+          });
+    }
+  }
+
+  @Override
+  public String getAssertions() throws IOException {
+    StringWriter writer = new StringWriter();
+    try (writer) {
+      Txn.executeRead(
+          assertions, () -> RDFDataMgr.write(writer, assertions.getDefaultModel(), Lang.TRIG));
+    }
+    return writer.toString();
+  }
+
+  QueryExecution getQueryExecution(Query query) {
+    return QueryExecution.dataset(assertions).query(query).build();
+  }
+
+  @Override
+  public String describe(String id) throws IOException {
+    Node node = getNode(id);
+    Query query = QueryFactory.create();
+    query.setQueryDescribeType();
+    query.addDescribeNode(node);
+    return Txn.calculateRead(
         assertions,
         () -> {
-          Node graphNode = NodeFactory.createURI(branch);
-          if (assertions.containsGraph(graphNode)) {
-            assertions.removeGraph(graphNode);
-            return true;
+          QueryExecution queryExecution = getQueryExecution(query);
+          try (queryExecution) {
+            Model description = queryExecution.execDescribe();
+            StringWriter writer = new StringWriter();
+            try (writer) {
+              description.write(writer, "TTL");
+            } catch (IOException e) {
+              throw new RuntimeException(e);
+            }
+            return writer.toString();
           }
-          return false;
         });
   }
 
-  @Override
-  public void writeAssertions(OutputStream os) {
-    Txn.executeRead(assertions, () -> RDFDataMgr.write(os, assertions, Lang.TRIG));
+  public String query(String sparql) {
+    Query query = QueryFactory.create(sparql);
+    return Txn.calculateRead(
+        assertions,
+        () -> {
+          QueryExecution queryExecution = getQueryExecution(query);
+          try (queryExecution) {
+            if (query.isSelectType()) {
+              ResultSet resultSet = queryExecution.execSelect();
+              return ResultSetFormatter.asText(resultSet);
+            }
+            if (query.isAskType()) {
+              return String.valueOf(queryExecution.execAsk());
+            }
+            return null;
+          }
+        });
   }
 }

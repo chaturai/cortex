@@ -1,7 +1,7 @@
 package ai.chatur.cortex;
 
 import java.io.IOException;
-import java.io.OutputStream;
+import java.util.List;
 
 public interface Cortex {
 
@@ -9,11 +9,19 @@ public interface Cortex {
 
   IngestResult ingest(String ttl) throws IOException;
 
-  boolean hasBranch(String uri);
+  List<String> listBranches();
 
-  boolean approve(String branch);
+  boolean hasBranch(String branch);
 
-  boolean reject(String branch);
+  String getBranch(String branch) throws IOException;
 
-  void writeAssertions(OutputStream os);
+  void approve(String branch);
+
+  void reject(String branch);
+
+  String getAssertions() throws IOException;
+
+  String describe(String id) throws IOException;
+
+  String query(String sparql) throws IOException;
 }
