@@ -2,16 +2,14 @@ package ai.chatur.cortex;
 
 import java.io.*;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
 import java.util.UUID;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.ontapi.model.OntModel;
 import org.apache.jena.query.*;
-import org.apache.jena.rdf.model.Model;
-import org.apache.jena.rdf.model.ModelFactory;
-import org.apache.jena.rdf.model.Resource;
-import org.apache.jena.rdf.model.ResourceFactory;
+import org.apache.jena.rdf.model.*;
 import org.apache.jena.rdfpatch.RDFPatch;
 import org.apache.jena.rdfpatch.RDFPatchOps;
 import org.apache.jena.rdfpatch.changes.RDFChangesCollector;
@@ -23,6 +21,7 @@ import org.apache.jena.shacl.ValidationReport;
 import org.apache.jena.shacl.lib.ShLib;
 import org.apache.jena.sparql.core.Quad;
 import org.apache.jena.system.Txn;
+import org.apache.jena.vocabulary.DCTerms;
 
 public class JenaCortex implements Cortex {
   Dataset assertions;
@@ -84,7 +83,17 @@ public class JenaCortex implements Cortex {
     RDFDataMgr.read(model, reader, null, Lang.TTL);
     ValidationReport validationReport = validate(model);
     if (validationReport.conforms()) {
-      Txn.executeWrite(assertions, () -> assertions.addNamedModel(namedModel, model));
+      Model provModel = ModelFactory.createDefaultModel();
+      Literal now = provModel.createTypedLiteral(Calendar.getInstance());
+      model
+          .listStatements()
+          .forEach(
+              statement -> {
+                provModel.add(statement);
+                Resource quoted = provModel.createReifier(statement);
+                provModel.add(quoted, DCTerms.created, now);
+              });
+      Txn.executeWrite(assertions, () -> assertions.addNamedModel(namedModel, provModel));
       return new IngestResult(true, namedModel.getLocalName(), null);
     }
     return new IngestResult(false, null, getErrors(validationReport));

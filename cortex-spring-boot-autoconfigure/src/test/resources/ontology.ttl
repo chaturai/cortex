@@ -1,18 +1,14 @@
-@prefix owl:  <http://www.w3.org/2002/07/owl#> .
-@prefix prov: <http://www.w3.org/ns/prov#> .
-@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
-@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
 
-@prefix g: <cortex://branches/> .
-@prefix o: <cortex://ontology/> .
-@prefix : <cortex://assertions/>
+@prefix : <cortex://ontology/> .
+@prefix cortex: <cortex://> .
 
-o:Task a owl:Class .
+:Task a owl:Class .
 
-o:Agent a owl:Class .
+:Agent a owl:Class .
 
-o:assignedTo a owl:ObjectProperty ;
-    rdfs:domain o:Task ;
-    rdfs:range o:Agent .
+:assignedTo a owl:ObjectProperty ;
+    rdfs:domain :Task ;
+    rdfs:range :Agent .
