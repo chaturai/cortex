@@ -8,18 +8,31 @@ import org.apache.jena.query.Dataset;
 import org.apache.jena.shacl.ShaclValidator;
 import org.apache.jena.shacl.Shapes;
 import org.apache.jena.tdb2.TDB2Factory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * Configures ingestion: the TDB2 dataset holding assertions (in-memory or persistent, per the
+ * {@code cortex.persistent} property), SHACL validation, the {@link IngestService}, the web UI
+ * controller for reviewing branches, and the MCP ingest tool.
+ */
 @Configuration
 public class IngestConfiguration {
+
+  private static final Logger log = LoggerFactory.getLogger(IngestConfiguration.class);
 
   @Bean
   @Qualifier("assertions")
   Dataset assertions(CortexProperties properties) {
-    if (properties.persistent()) return TDB2Factory.connectDataset(properties.assertionsLocation());
-    else return TDB2Factory.createDataset();
+    if (properties.persistent()) {
+      log.info("Connecting persistent assertions store at {}", properties.assertionsLocation());
+      return TDB2Factory.connectDataset(properties.assertionsLocation());
+    }
+    log.info("Using in-memory assertions store");
+    return TDB2Factory.createDataset();
   }
 
   @Bean
@@ -29,7 +42,9 @@ public class IngestConfiguration {
 
   @Bean
   Shapes shapes(CortexProperties properties) throws IOException {
-    return Shapes.parse(properties.shapes().getFile().getAbsolutePath());
+    Shapes shapes = Shapes.parse(properties.shapes().getFile().getAbsolutePath());
+    log.info("Loaded {} shapes from {}", shapes.numRootShapes(), properties.shapes());
+    return shapes;
   }
 
   @Bean

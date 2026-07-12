@@ -6,6 +6,10 @@ import java.io.IOException;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 
+/**
+ * MCP tool that lets AI agents ingest assertions into the knowledge graph, staged on a branch for
+ * human review.
+ */
 public class IngestTools {
 
   private final Cortex cortex;
