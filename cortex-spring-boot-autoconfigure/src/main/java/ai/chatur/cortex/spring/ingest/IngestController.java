@@ -2,7 +2,6 @@ package ai.chatur.cortex.spring.ingest;
 
 import ai.chatur.cortex.Cortex;
 import java.io.IOException;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,7 +12,12 @@ import org.springframework.web.servlet.view.RedirectView;
 
 @Controller
 public class IngestController {
-  @Autowired Cortex cortex;
+
+  private final Cortex cortex;
+
+  public IngestController(Cortex cortex) {
+    this.cortex = cortex;
+  }
 
   @GetMapping("/")
   public RedirectView getIndex() {

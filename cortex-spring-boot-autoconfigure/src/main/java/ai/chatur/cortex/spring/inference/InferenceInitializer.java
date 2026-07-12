@@ -1,11 +1,9 @@
-package ai.chatur.cortex.spring;
+package ai.chatur.cortex.spring.inference;
 
 import ai.chatur.cortex.Cortex;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
-import org.springframework.stereotype.Component;
 
-@Component
 public class InferenceInitializer {
 
   private final Cortex cortex;
