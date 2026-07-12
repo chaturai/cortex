@@ -40,11 +40,11 @@ public class JenaIngestService implements IngestService {
     return getGraphNode(uuid.toString());
   }
 
-  private ValidationReport validate(Graph graph) {
+  ValidationReport validate(Graph graph) {
     return shaclValidator.validate(shapes, graph);
   }
 
-  private String getErrors(ValidationReport validationReport) throws IOException {
+  String getErrors(ValidationReport validationReport) throws IOException {
     if (validationReport.conforms()) return null;
     try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
       ShLib.printReport(os, validationReport);
