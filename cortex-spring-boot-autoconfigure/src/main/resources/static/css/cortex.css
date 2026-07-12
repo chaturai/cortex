@@ -7,7 +7,7 @@
 }
 
 body {
-  font-family: "JetBrains Mono", monospace;
+  font-family: "Roboto", monospace;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -16,7 +16,7 @@ h1, h2, h3, h4, h5, h6 {
 
 pre,
 code {
-  font-family: "Roboto Mono", monospace;
+  font-family: "Jetbrains Mono", monospace;
 }
 
 :root {
@@ -52,21 +52,22 @@ nav {
   background-color: var(--base02);
   color: var(--base0);
   border-bottom: 1px solid var(--base01);
-  padding: 0;
-  margin-bottom: 0;
-  font-family: "Roboto", sans-serif;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  margin-bottom: 4px;
+  font-family: "Roboto", monospace;
 }
 
 .navbar-container {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.25rem 0.75rem;
+  padding: 0.25rem 1rem;
   max-width: 100%;
 }
 
 .navbar-brand {
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   color: var(--blue);
@@ -160,7 +161,7 @@ main {
 .btn {
   padding: 0.5rem 1rem;
   border: none;
-  font-family: "JetBrains Mono", monospace;
+  font-family: "Jetbrains Mono", monospace;
   font-size: 0.75rem;
   font-weight: 500;
   cursor: pointer;
@@ -325,6 +326,69 @@ main {
 
 .statements-empty {
   color: var(--base01);
+}
+
+/* Stats */
+.stats-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.stats-heading {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--base01);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  background: var(--base02);
+  border: 1px solid var(--base01);
+  border-radius: 4px;
+  padding: 1rem 1.5rem;
+  text-decoration: none;
+  transition: all 250ms ease;
+}
+
+a.stat-card:hover {
+  border-color: var(--blue);
+}
+
+.stat-value {
+  font-family: "Roboto", sans-serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--base1);
+}
+
+a.stat-card .stat-value {
+  color: var(--blue);
+}
+
+.stat-card-today .stat-value {
+  color: var(--green);
+}
+
+.stat-label {
+  font-size: 0.625rem;
+  font-weight: 500;
+  color: var(--base01);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 /* Code styling */

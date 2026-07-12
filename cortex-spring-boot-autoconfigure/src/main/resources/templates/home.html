@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+  <head th:replace="~{fragments :: head('Cortex')}"></head>
+  <body>
+    <nav th:replace="~{fragments :: navbar}"></nav>
+    <main>
+      <div class="stats-container">
+        <section class="stats-section">
+          <h2 class="stats-heading">Activity</h2>
+          <div class="stats-grid">
+            <div class="stat-card stat-card-today">
+              <span class="stat-value" th:text="${stats.triplesAddedToday}">0</span>
+              <span class="stat-label">Triples added today</span>
+            </div>
+            <a class="stat-card" href="/branches">
+              <span class="stat-value" th:text="${stats.pendingBranches}">0</span>
+              <span class="stat-label">Pending branches</span>
+            </a>
+          </div>
+        </section>
+        <section class="stats-section">
+          <h2 class="stats-heading">Knowledge graph</h2>
+          <div class="stats-grid">
+            <a class="stat-card" href="/assertions">
+              <span class="stat-value" th:text="${stats.assertionTriples}">0</span>
+              <span class="stat-label">Asserted triples</span>
+            </a>
+            <div class="stat-card">
+              <span class="stat-value" th:text="${stats.inferenceTriples}">0</span>
+              <span class="stat-label">Inferred triples</span>
+            </div>
+          </div>
+        </section>
+        <section class="stats-section">
+          <h2 class="stats-heading">Schema</h2>
+          <div class="stats-grid">
+            <a class="stat-card" href="/ontology">
+              <span class="stat-value" th:text="${stats.ontologyClasses}">0</span>
+              <span class="stat-label">Ontology classes</span>
+            </a>
+            <div class="stat-card">
+              <span class="stat-value" th:text="${stats.shapes}">0</span>
+              <span class="stat-label">SHACL shapes</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-value" th:text="${stats.rules}">0</span>
+              <span class="stat-label">Inference rules</span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

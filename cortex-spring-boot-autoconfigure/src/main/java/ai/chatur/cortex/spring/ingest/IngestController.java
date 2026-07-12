@@ -10,6 +10,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.view.RedirectView;
 
+/**
+ * Web UI for exploring the knowledge graph and reviewing staged branches: browse classes,
+ * instances, and statements with provenance, and approve or reject pending branches.
+ */
 @Controller
 public class IngestController {
 
@@ -17,11 +21,6 @@ public class IngestController {
 
   public IngestController(Cortex cortex) {
     this.cortex = cortex;
-  }
-
-  @GetMapping("/")
-  public RedirectView getIndex() {
-    return new RedirectView("/ontology");
   }
 
   @GetMapping("/assertions")

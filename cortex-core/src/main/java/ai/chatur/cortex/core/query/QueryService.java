@@ -2,9 +2,12 @@ package ai.chatur.cortex.core.query;
 
 import ai.chatur.cortex.ProvenancedStatement;
 import ai.chatur.cortex.core.CortexNames;
+import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.jena.ontapi.model.OntClass;
 import org.apache.jena.ontapi.model.OntModel;
 import org.apache.jena.query.Dataset;
@@ -14,28 +17,58 @@ import org.apache.jena.query.QueryFactory;
 import org.apache.jena.query.ResultSet;
 import org.apache.jena.query.ResultSetFormatter;
 import org.apache.jena.rdf.model.Literal;
+import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.RDFNode;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.rdf.model.ResourceFactory;
+import org.apache.jena.riot.Lang;
+import org.apache.jena.riot.RDFDataMgr;
 import org.apache.jena.system.Txn;
+import org.apache.lucene.queryparser.classic.QueryParserBase;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+/**
+ * Answers questions about the knowledge graph.
+ *
+ * <p>All lookups run against the inference dataset, so results include both approved assertions and
+ * statements derived from them by the reasoner.
+ */
 public class QueryService {
+
+  private static final Logger log = LoggerFactory.getLogger(QueryService.class);
 
   private final Dataset inferences;
   private final OntModel ontModel;
 
+  /**
+   * Creates the service.
+   *
+   * @param inferences the dataset holding the assertions enriched by inference
+   * @param ontModel the ontology model, used to resolve classes and shorten URIs
+   */
   public QueryService(Dataset inferences, OntModel ontModel) {
     this.inferences = inferences;
     this.ontModel = ontModel;
   }
 
+  /**
+   * Returns the known instances of an ontology class.
+   *
+   * @param type the local name of the ontology class
+   * @return the instance identifiers sorted alphabetically, empty if the class is unknown
+   */
   public List<String> getInstances(String type) {
     return ontModel
         .classes()
         .filter(ontClass -> ontClass.getLocalName().equals(type))
         .findFirst()
         .map(this::listInstances)
-        .orElse(List.of());
+        .orElseGet(
+            () -> {
+              log.warn("No instances for unknown ontology class {}", type);
+              return List.of();
+            });
   }
 
   List<String> listInstances(OntClass ontClass) {
@@ -68,6 +101,13 @@ public class QueryService {
     return QueryExecution.dataset(inferences).query(query).build();
   }
 
+  /**
+   * Returns everything known about a resource, with the creation timestamp of each statement where
+   * provenance was recorded.
+   *
+   * @param id the identifier of the resource within the Cortex namespace
+   * @return the statements about the resource, sorted by predicate
+   */
   public List<ProvenancedStatement> describe(String id) {
     Query query =
         QueryFactory.create(
@@ -117,6 +157,13 @@ public class QueryService {
     return node.toString();
   }
 
+  /**
+   * Runs a SPARQL query against the knowledge graph.
+   *
+   * @param sparql a SPARQL {@code SELECT}, {@code ASK}, or {@code DESCRIBE} query
+   * @return {@code SELECT} and {@code ASK} results formatted as text, {@code DESCRIBE} results
+   *     serialized in Turtle syntax, or {@code null} for other query types
+   */
   public String query(String sparql) {
     Query query = QueryFactory.create(sparql);
     return Txn.calculateRead(
@@ -131,11 +178,27 @@ public class QueryService {
             if (query.isAskType()) {
               return String.valueOf(queryExecution.execAsk());
             }
+            if (query.isDescribeType()) {
+              Model model = queryExecution.execDescribe();
+              model.setNsPrefixes(ontModel.getNsPrefixMap());
+              StringWriter writer = new StringWriter();
+              RDFDataMgr.write(writer, model, Lang.TTL);
+              return writer.toString();
+            }
             return null;
           }
         });
   }
 
+  /**
+   * Finds resources by fuzzy full-text search over their labels.
+   *
+   * <p>Each term of the input is matched approximately, so small typos and spelling variations
+   * still find their target.
+   *
+   * @param text the text to search for
+   * @return the matches with their relevance scores, formatted as text and ranked best first
+   */
   public String search(String text) {
     Query query =
         QueryFactory.create(
@@ -145,7 +208,7 @@ public class QueryService {
             WHERE { (?subject ?score ?match) text:query ?text }
             ORDER BY DESC(?score)
             """);
-    Literal literal = ResourceFactory.createPlainLiteral(text);
+    Literal literal = ResourceFactory.createPlainLiteral(getFuzzyQuery(text));
     return Txn.calculateRead(
         inferences,
         () -> {
@@ -156,5 +219,13 @@ public class QueryService {
             return ResultSetFormatter.asText(resultSet);
           }
         });
+  }
+
+  String getFuzzyQuery(String text) {
+    return Arrays.stream(text.trim().split("\\s+"))
+        .filter(term -> !term.isBlank())
+        .map(QueryParserBase::escape)
+        .map(term -> term + "~")
+        .collect(Collectors.joining(" "));
   }
 }

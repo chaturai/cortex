@@ -8,6 +8,10 @@ import java.util.Map;
 import org.springframework.ai.mcp.annotation.McpMeta;
 import org.springframework.ai.mcp.annotation.McpResource;
 
+/**
+ * MCP resource serving the ontology at {@code cortex://ontology}, so AI agents can ground the
+ * assertions they produce in the vocabulary of the knowledge graph.
+ */
 public class OntologyResources {
 
   private final Cortex cortex;

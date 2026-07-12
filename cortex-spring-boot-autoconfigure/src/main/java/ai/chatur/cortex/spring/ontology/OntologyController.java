@@ -6,6 +6,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 
+/** Web UI page rendering the ontology in Turtle syntax. */
 @Controller
 public class OntologyController {
 

@@ -17,12 +17,21 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * Configures querying: the inference dataset wrapped with a Lucene full-text index over {@code
+ * rdfs:label} (in-memory or persistent, per the {@code cortex.persistent} property), the {@link
+ * QueryService}, and the MCP query and search tools.
+ */
 @Configuration
 public class QueryConfiguration {
+
+  private static final Logger log = LoggerFactory.getLogger(QueryConfiguration.class);
 
   @Bean
   @Qualifier("inferences")
@@ -34,11 +43,13 @@ public class QueryConfiguration {
     if (properties.persistent()) {
       try {
         directory = FSDirectory.open(Path.of(properties.indexLocation()));
+        log.info("Using persistent text index at {}", properties.indexLocation());
       } catch (IOException e) {
         throw new UncheckedIOException(e);
       }
     } else {
       directory = new ByteBuffersDirectory();
+      log.info("Using in-memory text index");
     }
 
     TextIndexConfig indexConfig = new TextIndexConfig(entityDef);
