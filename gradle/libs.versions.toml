@@ -3,9 +3,11 @@ junit = "6.0.0"
 apache-jena = "6.1.0"
 spring-boot = "4.0.7"
 spring-ai = "2.0.0"
+slf4j = "2.0.17"
 
 [libraries]
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 jena-bom = { module = "org.apache.jena:jena-bom", version.ref = "apache-jena" }
 spring-boot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
 spring-ai-bom = { module = "org.springframework.ai:spring-ai-bom", version.ref = "spring-ai" }
