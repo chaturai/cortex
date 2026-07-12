@@ -5,6 +5,8 @@ spring:
     mcp:
       server:
         protocol: stateless
+        type: sync
+        instructions: Use this MCP for knowledge graph operations
 
 cortex:
   ingest:

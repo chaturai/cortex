@@ -1,5 +1,6 @@
 package ai.chatur.cortex.spring.ingest;
 
+import java.io.OutputStream;
 import java.util.Iterator;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.rdf.model.Resource;
@@ -26,7 +27,7 @@ public class AssertionRepository {
         assertions, () -> assertions.containsNamedModel(ResourceFactory.createResource(uri)));
   }
 
-  public void printAssertions() {
-    Txn.executeRead(assertions, () -> RDFDataMgr.write(System.out, assertions, Lang.TRIG));
+  public void writeAssertions(OutputStream os) {
+    Txn.executeRead(assertions, () -> RDFDataMgr.write(os, assertions, Lang.TRIG));
   }
 }
