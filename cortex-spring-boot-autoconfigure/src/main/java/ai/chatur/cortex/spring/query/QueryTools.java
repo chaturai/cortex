@@ -25,4 +25,18 @@ public class QueryTools {
       throws IOException {
     return cortex.query(sparql);
   }
+
+  @McpTool(
+      description =
+          "Use this tool to find resources by full-text search over their labels. Returns matches ranked by relevance",
+      annotations =
+          @McpTool.McpAnnotations(
+              title = "Search",
+              readOnlyHint = true,
+              destructiveHint = false,
+              idempotentHint = true,
+              openWorldHint = false))
+  String search(@McpToolParam(description = "Text to search for") String text) {
+    return cortex.search(text);
+  }
 }
