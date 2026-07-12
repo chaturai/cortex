@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+  <head th:replace="~{fragments :: head('Assertions')}"></head>
+  <body>
+    <nav th:replace="~{fragments :: navbar}"></nav>
+    <main>
+      <div class="describe-container">
+        <h1 th:text="${subject}"></h1>
+        <ul class="statement-list" th:if="${!statements.isEmpty()}">
+          <li class="statement-item" th:each="statement : ${statements}" th:classappend="${statement.created == null ? 'statement-inferred' : 'statement-asserted'}">
+            <code class="linkify statement-predicate" th:text="${statement.predicate}"></code>
+            <code class="linkify statement-object" th:text="${statement.object}"></code>
+            <span
+              class="statement-created"
+              th:if="${statement.created != null}"
+              th:text="${statement.created}"></span>
+            <span class="statement-inferred-badge" th:if="${statement.created == null}">inferred</span>
+          </li>
+        </ul>
+        <p class="statements-empty" th:if="${statements.isEmpty()}">
+          No statements for this subject.
+        </p>
+      </div>
+    </main>
+    <script th:src="@{/js/cortex.js}"></script>
+  </body>
+</html>

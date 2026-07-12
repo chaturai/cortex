@@ -8,6 +8,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.view.RedirectView;
 
 @Controller
@@ -20,9 +21,15 @@ public class IngestController {
   }
 
   @GetMapping("/assertions")
-  public String getAssertions(Model model) throws IOException {
-    model.addAttribute("assertions", cortex.getAssertions());
-    return "assertions";
+  public String getAssertions(
+      @RequestParam(value = "type", required = false) String type, Model model) {
+    if (type == null) {
+      model.addAttribute("classes", cortex.getClassHierarchy());
+      return "classes";
+    }
+    model.addAttribute("type", type);
+    model.addAttribute("instances", cortex.getInstances(type));
+    return "instances";
   }
 
   @GetMapping("/branches")
@@ -37,10 +44,12 @@ public class IngestController {
     return "assertions";
   }
 
-  @GetMapping("/assertions/{id}")
-  public String describe(@PathVariable("id") String id, Model model) throws IOException {
-    model.addAttribute("assertions", cortex.describe(id));
-    return "assertions";
+  @GetMapping("/assertions/{*id}")
+  public String describe(@PathVariable("id") String id, Model model) {
+    String subject = id.startsWith("/") ? id.substring(1) : id;
+    model.addAttribute("subject", subject);
+    model.addAttribute("statements", cortex.describe(subject));
+    return "describe";
   }
 
   @PostMapping("/branches/{branch}/approve")

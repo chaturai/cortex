@@ -21,9 +21,15 @@ public interface Cortex {
 
   String getAssertions() throws IOException;
 
-  String describe(String id) throws IOException;
+  List<OntologyClass> getClassHierarchy();
+
+  List<String> getInstances(String type);
+
+  List<ProvenancedStatement> describe(String id);
 
   String query(String sparql) throws IOException;
 
   String search(String text);
+
+  void recomputeInference();
 }

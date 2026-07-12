@@ -2,6 +2,8 @@ package ai.chatur.cortex.spring.ingest;
 
 import ai.chatur.cortex.Cortex;
 import ai.chatur.cortex.IngestResult;
+import ai.chatur.cortex.OntologyClass;
+import ai.chatur.cortex.ProvenancedStatement;
 import ai.chatur.cortex.spring.CortexConfiguration;
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -86,12 +88,60 @@ public class IngestUnitTests {
   }
 
   @Test
-  void controllerShouldRenderOntologyView() throws IOException {
+  void controllerShouldRenderClassesView() {
+    Model model = new ExtendedModelMap();
+    String view = ingestController.getAssertions(null, model);
+    assert (view.equals("classes"));
+
+    @SuppressWarnings("unchecked")
+    List<OntologyClass> classes = (List<OntologyClass>) model.getAttribute("classes");
+    assert (classes != null);
+    List<String> names = classes.stream().map(OntologyClass::name).toList();
+    assert (names.contains("Task"));
+    assert (names.contains("Agent"));
+  }
+
+  @Test
+  void controllerShouldRenderInstancesView() throws IOException {
+    String ttl = validAssertion.getContentAsString(Charset.defaultCharset());
+    IngestResult ingestResult = cortex.ingest(ttl);
+    cortex.approve(ingestResult.branch());
+
+    Model model = new ExtendedModelMap();
+    String view = ingestController.getAssertions("Task", model);
+    assert (view.equals("instances"));
+    assert ("Task".equals(model.getAttribute("type")));
+
+    @SuppressWarnings("unchecked")
+    List<String> instances = (List<String>) model.getAttribute("instances");
+    assert (instances != null);
+    assert (instances.contains("assertions/ValidTask"));
+  }
+
+  @Test
+  void controllerShouldRenderDescribeView() {
     String id = "test";
 
     Model model = new ExtendedModelMap();
     String view = ingestController.describe(id, model);
-    assert (view.equals("assertions"));
-    assert (cortex.describe(id).equals(model.getAttribute("assertions")));
+    assert (view.equals("describe"));
+    assert (id.equals(model.getAttribute("subject")));
+    assert (cortex.describe(id).equals(model.getAttribute("statements")));
+  }
+
+  @Test
+  void describeShouldIncludeProvenance() throws IOException {
+    String ttl = validAssertion.getContentAsString(Charset.defaultCharset());
+    IngestResult ingestResult = cortex.ingest(ttl);
+    cortex.approve(ingestResult.branch());
+
+    List<ProvenancedStatement> statements = cortex.describe("assertions/ValidTask");
+    assert (!statements.isEmpty());
+    ProvenancedStatement assigned =
+        statements.stream()
+            .filter(statement -> statement.predicate().contains("assignedTo"))
+            .findFirst()
+            .orElseThrow();
+    assert (assigned.created() != null);
   }
 }

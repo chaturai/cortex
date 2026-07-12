@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+  <head th:replace="~{fragments :: head('Assertions')}"></head>
+  <body>
+    <nav th:replace="~{fragments :: navbar}"></nav>
+    <main>
+      <div class="classes-container">
+        <ul class="class-tree">
+          <th:block th:each="ontClass : ${classes}">
+            <li th:replace="~{fragments :: classNode(${ontClass})}"></li>
+          </th:block>
+        </ul>
+      </div>
+    </main>
+  </body>
+</html>

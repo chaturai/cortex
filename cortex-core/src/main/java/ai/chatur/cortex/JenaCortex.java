@@ -3,10 +3,14 @@ package ai.chatur.cortex;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
+import org.apache.jena.ontapi.model.OntClass;
 import org.apache.jena.ontapi.model.OntModel;
 import org.apache.jena.query.*;
 import org.apache.jena.rdf.model.*;
@@ -91,17 +95,7 @@ public class JenaCortex implements Cortex {
     RDFDataMgr.read(model, reader, null, Lang.TTL);
     ValidationReport validationReport = validate(model);
     if (validationReport.conforms()) {
-      Model provModel = ModelFactory.createDefaultModel();
-      Literal now = provModel.createTypedLiteral(Calendar.getInstance());
-      model
-          .listStatements()
-          .forEach(
-              statement -> {
-                provModel.add(statement);
-                Resource quoted = provModel.createReifier(statement);
-                provModel.add(quoted, DCTerms.created, now);
-              });
-      Txn.executeWrite(assertions, () -> assertions.addNamedModel(namedModel, provModel));
+      Txn.executeWrite(assertions, () -> assertions.addNamedModel(namedModel, model));
       return new IngestResult(true, namedModel.getLocalName(), null);
     }
     return new IngestResult(false, null, getErrors(validationReport));
@@ -152,7 +146,7 @@ public class JenaCortex implements Cortex {
       Txn.executeRead(
           assertions,
           () ->
-              assertions.getNamedModel(namedModel).getGraph().stream()
+              getProvenanced(assertions.getNamedModel(namedModel)).getGraph().stream()
                   .forEach(
                       triple -> {
                         collector.add(
@@ -165,18 +159,37 @@ public class JenaCortex implements Cortex {
       RDFPatch patch = collector.getRDFPatch();
       RDFPatchOps.applyChange(assertions.asDatasetGraph(), patch);
       Txn.executeWrite(assertions, () -> assertions.removeNamedModel(namedModel));
-      Txn.executeWrite(
-          inferences,
-          () -> {
-            Txn.executeRead(
-                assertions,
-                () -> {
-                  Model model = assertions.getDefaultModel();
-                  InfModel inf = ModelFactory.createInfModel(reasoner, model);
-                  inferences.setDefaultModel(inf);
-                });
-          });
+      recomputeInference();
     }
+  }
+
+  Model getProvenanced(Model model) {
+    Model provModel = ModelFactory.createDefaultModel();
+    Literal now = provModel.createTypedLiteral(Calendar.getInstance());
+    model
+        .listStatements()
+        .forEach(
+            statement -> {
+              provModel.add(statement);
+              Resource quoted = provModel.createReifier(statement);
+              provModel.add(quoted, DCTerms.created, now);
+            });
+    return provModel;
+  }
+
+  @Override
+  public void recomputeInference() {
+    Txn.executeWrite(
+        inferences,
+        () -> {
+          Txn.executeRead(
+              assertions,
+              () -> {
+                Model model = assertions.getDefaultModel();
+                InfModel inf = ModelFactory.createInfModel(reasoner, model);
+                inferences.setDefaultModel(inf);
+              });
+        });
   }
 
   @Override
@@ -202,31 +215,117 @@ public class JenaCortex implements Cortex {
     return writer.toString();
   }
 
-  QueryExecution getQueryExecution(Query query) {
-    return QueryExecution.dataset(inferences).query(query).build();
+  @Override
+  public List<OntologyClass> getClassHierarchy() {
+    return ontModel
+        .hierarchyRoots()
+        .filter(OntClass::isURIResource)
+        .map(root -> getOntologyClass(root, new HashSet<>()))
+        .sorted(Comparator.comparing(OntologyClass::name))
+        .toList();
+  }
+
+  OntologyClass getOntologyClass(OntClass ontClass, Set<OntClass> lineage) {
+    Set<OntClass> path = new HashSet<>(lineage);
+    path.add(ontClass);
+    List<OntologyClass> subClasses =
+        ontClass
+            .subClasses(true)
+            .filter(OntClass::isURIResource)
+            .filter(subClass -> !path.contains(subClass))
+            .map(subClass -> getOntologyClass(subClass, path))
+            .sorted(Comparator.comparing(OntologyClass::name))
+            .toList();
+    return new OntologyClass(ontClass.getLocalName(), subClasses);
   }
 
   @Override
-  public String describe(String id) throws IOException {
-    Node node = getNode(id);
-    Query query = QueryFactory.create();
-    query.setQueryDescribeType();
-    query.addDescribeNode(node);
+  public List<String> getInstances(String type) {
+    return ontModel
+        .classes()
+        .filter(ontClass -> ontClass.getLocalName().equals(type))
+        .findFirst()
+        .map(this::listInstances)
+        .orElse(List.of());
+  }
+
+  List<String> listInstances(OntClass ontClass) {
+    Query query =
+        QueryFactory.create(
+            "SELECT DISTINCT ?instance WHERE { ?instance a <" + ontClass.getURI() + "> }");
     return Txn.calculateRead(
         inferences,
         () -> {
           QueryExecution queryExecution = getQueryExecution(query);
           try (queryExecution) {
-            Model description = queryExecution.execDescribe();
-            StringWriter writer = new StringWriter();
-            try (writer) {
-              description.write(writer, "TTL");
-            } catch (IOException e) {
-              throw new RuntimeException(e);
-            }
-            return writer.toString();
+            List<String> instances = new ArrayList<>();
+            queryExecution
+                .execSelect()
+                .forEachRemaining(
+                    solution -> {
+                      Resource instance = solution.getResource("instance");
+                      if (instance.isURIResource() && instance.getURI().startsWith(NS)) {
+                        instances.add(instance.getURI().substring(NS.length()));
+                      }
+                    });
+            instances.sort(Comparator.naturalOrder());
+            return instances;
           }
         });
+  }
+
+  QueryExecution getQueryExecution(Query query) {
+    return QueryExecution.dataset(inferences).query(query).build();
+  }
+
+  @Override
+  public List<ProvenancedStatement> describe(String id) {
+    Query query =
+        QueryFactory.create(
+            """
+            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+            PREFIX dcterms: <http://purl.org/dc/terms/>
+            SELECT ?predicate ?object ?created
+            WHERE {
+              ?subject ?predicate ?object .
+              OPTIONAL {
+                ?reifier rdf:reifies <<( ?subject ?predicate ?object )>> .
+                ?reifier dcterms:created ?created .
+              }
+            }
+            ORDER BY ?predicate ?object
+            """);
+    Resource subject = getResource(id);
+    return Txn.calculateRead(
+        inferences,
+        () -> {
+          QueryExecution queryExecution =
+              QueryExecution.dataset(inferences)
+                  .query(query)
+                  .substitution("subject", subject)
+                  .build();
+          try (queryExecution) {
+            List<ProvenancedStatement> statements = new ArrayList<>();
+            queryExecution
+                .execSelect()
+                .forEachRemaining(
+                    solution ->
+                        statements.add(
+                            new ProvenancedStatement(
+                                shortForm(solution.get("predicate")),
+                                shortForm(solution.get("object")),
+                                solution.contains("created")
+                                    ? solution.getLiteral("created").getLexicalForm()
+                                    : null)));
+            return statements;
+          }
+        });
+  }
+
+  String shortForm(RDFNode node) {
+    if (node.isURIResource()) return ontModel.shortForm(node.asResource().getURI());
+    if (node.isLiteral()) return node.asLiteral().getLexicalForm();
+    return node.toString();
   }
 
   public String query(String sparql) {
