@@ -65,4 +65,18 @@ public class JenaIngestService implements IngestService {
     }
     return new IngestResult(false, null, getErrors(validationReport));
   }
+
+  @Override
+  public boolean reject(String branch) {
+    return Txn.calculateWrite(
+        assertions,
+        () -> {
+          Node graphNode = NodeFactory.createURI(branch);
+          if (assertions.containsGraph(graphNode)) {
+            assertions.removeGraph(graphNode);
+            return true;
+          }
+          return false;
+        });
+  }
 }
