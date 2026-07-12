@@ -6,7 +6,7 @@ spring:
       server:
         protocol: stateless
         type: sync
-        instructions: Use this MCP for knowledge graph operations
+        instructions: Use this MCP for knowledge graph operations. Load cortex://ontology resource on connection
 
 cortex:
   persistent: true
