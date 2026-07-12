@@ -1,4 +1,4 @@
-package ai.chatur.cortex.spring.core;
+package ai.chatur.cortex.spring.ingest;
 
 import java.util.Iterator;
 import org.apache.jena.query.Dataset;

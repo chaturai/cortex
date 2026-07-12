@@ -1,8 +1,8 @@
-@prefix o: <cortex://ontologies/> .
-@prefix i: <cortex://instances/> .
+@prefix o: <cortex://ontology/> .
+@prefix : <cortex://assertions/> .
 
-i:ValidTask o:assignedTo i:ValidAgent .
+:ValidTask o:assignedTo :ValidAgent .
 
-i:InvalidTask a o:Task .
+:InvalidTask a o:Task .
 
-i:InvalidNode a o:InvalidClass .
+:InvalidNode a o:InvalidClass .
