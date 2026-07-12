@@ -1,7 +1,8 @@
-package ai.chatur.cortex.spring.mcp.resources;
+package ai.chatur.cortex.spring.ontology;
 
 import ai.chatur.cortex.OntologyRepository;
 import io.modelcontextprotocol.spec.McpSchema;
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import org.springframework.ai.mcp.annotation.McpMeta;
@@ -17,7 +18,7 @@ public class OntologyResource {
       uri = "cortex://ontology",
       name = "Ontology",
       description = "Access Cortex Ontology in Turtle format")
-  public McpSchema.ReadResourceResult getOntology(McpMeta meta) {
+  public McpSchema.ReadResourceResult getOntology(McpMeta meta) throws IOException {
     String ontology = ontologyRepository.getOntology();
     Map<String, Object> ontologyMeta = Map.ofEntries(Map.entry("format", "Turtle"));
 
