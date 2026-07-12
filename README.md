@@ -54,8 +54,10 @@ The starter registers an MCP server (via Spring AI) through which agents interac
 | Tool | Parameters | Description |
 |---|---|---|
 | **Ingest** | `ttl` — RDF data in Turtle syntax | Validates the assertions against the SHACL shapes and stages them on a new branch for human review. Returns the branch name, or the validation errors if the data does not conform. Assertions must use the vocabulary of `cortex://ontology`. |
-| **Query** | `sparql` — a SPARQL `SELECT` or `ASK` query | Runs the query against the knowledge graph, including statements derived by inference. Read-only and idempotent. |
-| **Search** | `text` — text to search for | Finds resources by full-text search over their labels. Returns matches ranked by relevance. Read-only and idempotent. |
+| **Query** | `sparql` — a SPARQL `SELECT` query | Runs the query against the knowledge graph, including statements derived by inference. Returns the results as a text table. Read-only and idempotent. |
+| **Ask** | `sparql` — a SPARQL `ASK` query | Answers a yes/no question against the knowledge graph, including statements derived by inference. Returns `true` or `false`. Read-only and idempotent. |
+| **Describe** | `sparql` — a SPARQL `DESCRIBE` query | Fetches everything known about the described resources, including statements derived by inference. Returns the results in Turtle syntax. Read-only and idempotent. |
+| **Search** | `text` — text to search for | Finds resources by fuzzy full-text search over their labels, tolerating small typos and spelling variations. Returns matches ranked by relevance. Read-only and idempotent. |
 
 ### Resources
 
@@ -69,7 +71,7 @@ The starter also serves a small UI for exploring the graph and reviewing what ag
 
 | Page | Description |
 |---|---|
-| `/` | Redirects to `/ontology`. |
+| `/` | Home page with knowledge graph statistics: triples added today, pending branches, asserted and inferred triples, ontology classes, SHACL shapes, and inference rules. |
 | `/ontology` | The ontology in Turtle syntax. |
 | `/assertions` | The class hierarchy of the ontology. |
 | `/assertions?type={class}` | The known instances of a class, including inferred ones. |
