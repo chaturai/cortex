@@ -8,8 +8,8 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class OntologyConfiguration {
 
-    @Bean
-    OntologyRepository ontologyRepository() {
-        return new JenaOntologyRepository();
-    }
+  @Bean
+  OntologyRepository ontologyRepository() {
+    return new JenaOntologyRepository();
+  }
 }
