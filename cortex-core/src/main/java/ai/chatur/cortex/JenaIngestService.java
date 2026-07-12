@@ -36,11 +36,12 @@ public class JenaIngestService implements IngestService {
   }
 
   @Override
-  public void ingest(String ttl) {
+  public String ingest(String ttl) {
     StringReader reader = new StringReader(ttl);
     Node graphNode = getGraphNode();
     Graph graph = GraphFactory.createDefaultGraph();
     RDFDataMgr.read(graph, reader, base, Lang.TTL);
     Txn.executeWrite(assertions, () -> assertions.addGraph(graphNode, graph));
+    return graphNode.getURI();
   }
 }

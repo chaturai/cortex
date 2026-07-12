@@ -2,5 +2,5 @@ package ai.chatur.cortex;
 
 public interface IngestService {
 
-  void ingest(String ttl);
+  String ingest(String ttl);
 }

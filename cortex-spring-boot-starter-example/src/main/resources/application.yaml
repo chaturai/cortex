@@ -1,3 +1,6 @@
 spring:
   application:
     name: cortex-spring-boot-starter-example
+
+cortex:
+  persistent: true

@@ -1,8 +1,8 @@
 package ai.chatur.cortex.spring.ingester;
 
 import ai.chatur.cortex.IngestService;
-import ai.chatur.cortex.spring.dataset.DatasetConfiguration;
-import ai.chatur.cortex.spring.dataset.DatasetService;
+import ai.chatur.cortex.spring.core.AssertionRepository;
+import ai.chatur.cortex.spring.core.CoreConfiguration;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import org.junit.jupiter.api.Test;
@@ -11,11 +11,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
-@SpringJUnitConfig(
-    classes = {IngesterConfiguration.class, DatasetConfiguration.class, DatasetService.class})
+@SpringJUnitConfig(classes = {IngesterConfiguration.class, CoreConfiguration.class})
 public class IngesterUnitTests {
 
-  @Autowired DatasetService datasetService;
+  @Autowired AssertionRepository assertionRepository;
   @Autowired IngestService ingestService;
 
   @Autowired
@@ -25,7 +24,7 @@ public class IngesterUnitTests {
   @Test
   void shouldStageValidAssertions() throws IOException {
     String ttl = validAssertion.getContentAsString(Charset.defaultCharset());
-    ingestService.ingest(ttl);
-    datasetService.printAssertions();
+    String branch = ingestService.ingest(ttl);
+    assert (assertionRepository.hasBranch(branch));
   }
 }
