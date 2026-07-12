@@ -5,12 +5,14 @@ import ai.chatur.cortex.IngestResult;
 import java.io.IOException;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
-@Component
 public class IngestTools {
-  @Autowired Cortex cortex;
+
+  private final Cortex cortex;
+
+  public IngestTools(Cortex cortex) {
+    this.cortex = cortex;
+  }
 
   @McpTool(
       description =

@@ -1,8 +1,0 @@
-@prefix o: <cortex://ontologies/> .
-@prefix i: <cortex://instances/> .
-
-i:ValidTask o:assignedTo i:ValidAgent .
-
-i:InvalidTask a o:Task .
-
-i:InvalidNode a o:InvalidClass .

@@ -4,12 +4,14 @@ import ai.chatur.cortex.Cortex;
 import java.io.IOException;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
-@Component
 public class QueryTools {
-  @Autowired Cortex cortex;
+
+  private final Cortex cortex;
+
+  public QueryTools(Cortex cortex) {
+    this.cortex = cortex;
+  }
 
   @McpTool(
       description =

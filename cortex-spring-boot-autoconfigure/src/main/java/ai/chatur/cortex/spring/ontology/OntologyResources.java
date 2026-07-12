@@ -7,12 +7,14 @@ import java.util.List;
 import java.util.Map;
 import org.springframework.ai.mcp.annotation.McpMeta;
 import org.springframework.ai.mcp.annotation.McpResource;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 
-@Component
 public class OntologyResources {
-  @Autowired Cortex cortex;
+
+  private final Cortex cortex;
+
+  public OntologyResources(Cortex cortex) {
+    this.cortex = cortex;
+  }
 
   @McpResource(
       uri = "cortex://ontology",
