@@ -13,6 +13,7 @@ import org.apache.jena.rdf.model.*;
 import org.apache.jena.rdfpatch.RDFPatch;
 import org.apache.jena.rdfpatch.RDFPatchOps;
 import org.apache.jena.rdfpatch.changes.RDFChangesCollector;
+import org.apache.jena.reasoner.Reasoner;
 import org.apache.jena.riot.Lang;
 import org.apache.jena.riot.RDFDataMgr;
 import org.apache.jena.shacl.ShaclValidator;
@@ -25,18 +26,25 @@ import org.apache.jena.vocabulary.DCTerms;
 
 public class JenaCortex implements Cortex {
   Dataset assertions;
+  Dataset inferences;
   OntModel ontModel;
   ShaclValidator shaclValidator;
   Shapes shapes;
+  Reasoner reasoner;
 
   public JenaCortex(
-      Dataset assertions, OntModel ontModel, ShaclValidator shaclValidator, Shapes shapes) {
-    Txn.executeWrite(
-        assertions, () -> assertions.getDefaultModel().setNsPrefixes(ontModel.getNsPrefixMap()));
+      Dataset assertions,
+      Dataset inferences,
+      OntModel ontModel,
+      ShaclValidator shaclValidator,
+      Shapes shapes,
+      Reasoner reasoner) {
     this.assertions = assertions;
+    this.inferences = inferences;
     this.ontModel = ontModel;
     this.shaclValidator = shaclValidator;
     this.shapes = shapes;
+    this.reasoner = reasoner;
   }
 
   public static String NS = "cortex://";
@@ -157,6 +165,17 @@ public class JenaCortex implements Cortex {
       RDFPatch patch = collector.getRDFPatch();
       RDFPatchOps.applyChange(assertions.asDatasetGraph(), patch);
       Txn.executeWrite(assertions, () -> assertions.removeNamedModel(namedModel));
+      Txn.executeWrite(
+          inferences,
+          () -> {
+            Txn.executeRead(
+                assertions,
+                () -> {
+                  Model model = assertions.getDefaultModel();
+                  InfModel inf = ModelFactory.createInfModel(reasoner, model);
+                  inferences.setDefaultModel(inf);
+                });
+          });
     }
   }
 
@@ -184,7 +203,7 @@ public class JenaCortex implements Cortex {
   }
 
   QueryExecution getQueryExecution(Query query) {
-    return QueryExecution.dataset(assertions).query(query).build();
+    return QueryExecution.dataset(inferences).query(query).build();
   }
 
   @Override
@@ -194,7 +213,7 @@ public class JenaCortex implements Cortex {
     query.setQueryDescribeType();
     query.addDescribeNode(node);
     return Txn.calculateRead(
-        assertions,
+        inferences,
         () -> {
           QueryExecution queryExecution = getQueryExecution(query);
           try (queryExecution) {
@@ -213,7 +232,7 @@ public class JenaCortex implements Cortex {
   public String query(String sparql) {
     Query query = QueryFactory.create(sparql);
     return Txn.calculateRead(
-        assertions,
+        inferences,
         () -> {
           QueryExecution queryExecution = getQueryExecution(query);
           try (queryExecution) {
@@ -225,6 +244,29 @@ public class JenaCortex implements Cortex {
               return String.valueOf(queryExecution.execAsk());
             }
             return null;
+          }
+        });
+  }
+
+  @Override
+  public String search(String text) {
+    Query query =
+        QueryFactory.create(
+            """
+            PREFIX text: <http://jena.apache.org/text#>
+            SELECT ?subject ?score ?match
+            WHERE { (?subject ?score ?match) text:query ?text }
+            ORDER BY DESC(?score)
+            """);
+    Literal literal = ResourceFactory.createPlainLiteral(text);
+    return Txn.calculateRead(
+        inferences,
+        () -> {
+          QueryExecution queryExecution =
+              QueryExecution.dataset(inferences).query(query).substitution("text", literal).build();
+          try (queryExecution) {
+            ResultSet resultSet = queryExecution.execSelect();
+            return ResultSetFormatter.asText(resultSet);
           }
         });
   }

@@ -24,4 +24,6 @@ public interface Cortex {
   String describe(String id) throws IOException;
 
   String query(String sparql) throws IOException;
+
+  String search(String text);
 }

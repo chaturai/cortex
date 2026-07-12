@@ -8,6 +8,7 @@ import org.springframework.core.io.Resource;
 public record CortexProperties(
     @DefaultValue("false") boolean persistent,
     @DefaultValue(".cortex/db") String assertionsLocation,
+    @DefaultValue(".cortex/index") String indexLocation,
     @DefaultValue("classpath:ontology.ttl") Resource ontology,
     @DefaultValue("classpath:shapes.ttl") Resource shapes,
     @DefaultValue("classpath:ontology.rules") Resource rules) {}
