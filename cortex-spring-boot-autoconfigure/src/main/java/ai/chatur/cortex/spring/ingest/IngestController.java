@@ -33,16 +33,14 @@ public class IngestController {
 
   @GetMapping("/branches/{branch}")
   public String getBranch(@PathVariable("branch") String branch, Model model) throws IOException {
-    model.addAttribute("branch", branch);
-    model.addAttribute("graph", cortex.getBranch(branch));
-    return "branch";
+    model.addAttribute("assertions", cortex.getBranch(branch));
+    return "assertions";
   }
 
   @GetMapping("/assertions/{id}")
   public String describe(@PathVariable("id") String id, Model model) throws IOException {
-    model.addAttribute("id", id);
-    model.addAttribute("description", cortex.describe(id));
-    return "ontology";
+    model.addAttribute("assertions", cortex.describe(id));
+    return "assertions";
   }
 
   @PostMapping("/branches/{branch}/approve")

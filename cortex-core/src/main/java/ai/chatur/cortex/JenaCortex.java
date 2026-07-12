@@ -7,10 +7,7 @@ import java.util.UUID;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.ontapi.model.OntModel;
-import org.apache.jena.query.Dataset;
-import org.apache.jena.query.Query;
-import org.apache.jena.query.QueryExecution;
-import org.apache.jena.query.QueryFactory;
+import org.apache.jena.query.*;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.rdf.model.Resource;
@@ -35,9 +32,8 @@ public class JenaCortex implements Cortex {
 
   public JenaCortex(
       Dataset assertions, OntModel ontModel, ShaclValidator shaclValidator, Shapes shapes) {
-    Model model = ModelFactory.createDefaultModel();
-    model.setNsPrefixes(ontModel.getNsPrefixMap());
-    Txn.executeWrite(assertions, () -> assertions.setDefaultModel(model));
+    Txn.executeWrite(
+        assertions, () -> assertions.getDefaultModel().setNsPrefixes(ontModel.getNsPrefixMap()));
     this.assertions = assertions;
     this.ontModel = ontModel;
     this.shaclValidator = shaclValidator;
@@ -52,7 +48,7 @@ public class JenaCortex implements Cortex {
 
   Resource getResource() {
     UUID uuid = UUID.randomUUID();
-    return getResource("branch-" + uuid.toString());
+    return getResource("branch-" + uuid);
   }
 
   Node getNode(String id) {
@@ -104,7 +100,6 @@ public class JenaCortex implements Cortex {
                 .listModelNames()
                 .forEachRemaining(
                     (node) -> {
-                      System.out.println(node.getURI());
                       branches.add(node.getLocalName());
                     }));
     return branches;
@@ -152,6 +147,7 @@ public class JenaCortex implements Cortex {
       collector.txnCommit();
       RDFPatch patch = collector.getRDFPatch();
       RDFPatchOps.applyChange(assertions.asDatasetGraph(), patch);
+      Txn.executeWrite(assertions, () -> assertions.removeNamedModel(namedModel));
     }
   }
 
@@ -188,12 +184,39 @@ public class JenaCortex implements Cortex {
     Query query = QueryFactory.create();
     query.setQueryDescribeType();
     query.addDescribeNode(node);
-    QueryExecution queryExecution = getQueryExecution(query);
-    Model description = Txn.calculateRead(assertions, queryExecution::execDescribe);
-    StringWriter writer = new StringWriter();
-    try (writer) {
-      description.write(writer, "TTL");
-    }
-    return writer.toString();
+    return Txn.calculateRead(
+        assertions,
+        () -> {
+          QueryExecution queryExecution = getQueryExecution(query);
+          try (queryExecution) {
+            Model description = queryExecution.execDescribe();
+            StringWriter writer = new StringWriter();
+            try (writer) {
+              description.write(writer, "TTL");
+            } catch (IOException e) {
+              throw new RuntimeException(e);
+            }
+            return writer.toString();
+          }
+        });
+  }
+
+  public String query(String sparql) {
+    Query query = QueryFactory.create(sparql);
+    return Txn.calculateRead(
+        assertions,
+        () -> {
+          QueryExecution queryExecution = getQueryExecution(query);
+          try (queryExecution) {
+            if (query.isSelectType()) {
+              ResultSet resultSet = queryExecution.execSelect();
+              return ResultSetFormatter.asText(resultSet);
+            }
+            if (query.isAskType()) {
+              return String.valueOf(queryExecution.execAsk());
+            }
+            return null;
+          }
+        });
   }
 }

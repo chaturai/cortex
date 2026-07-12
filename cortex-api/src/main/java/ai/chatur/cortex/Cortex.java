@@ -22,4 +22,6 @@ public interface Cortex {
   String getAssertions() throws IOException;
 
   String describe(String id) throws IOException;
+
+  String query(String sparql) throws IOException;
 }

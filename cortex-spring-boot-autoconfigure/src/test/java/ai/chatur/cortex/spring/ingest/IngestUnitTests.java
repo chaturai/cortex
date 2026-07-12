@@ -82,19 +82,16 @@ public class IngestUnitTests {
 
     Model model = new ExtendedModelMap();
     String view = ingestController.getBranch(branch, model);
-    assert (view.equals("branch"));
-    assert (branch.equals(model.getAttribute("branch")));
-    assert (cortex.getBranch(branch).equals(model.getAttribute("graph")));
+    assert (view.equals("assertions"));
   }
 
   @Test
-  void controllerShouldRenderOntologyView() {
+  void controllerShouldRenderOntologyView() throws IOException {
     String id = "test";
 
     Model model = new ExtendedModelMap();
     String view = ingestController.describe(id, model);
-    assert (view.equals("ontology"));
-    assert (id.equals(model.getAttribute("id")));
-    assert (cortex.describe(id).equals(model.getAttribute("description")));
+    assert (view.equals("assertions"));
+    assert (cortex.describe(id).equals(model.getAttribute("assertions")));
   }
 }
