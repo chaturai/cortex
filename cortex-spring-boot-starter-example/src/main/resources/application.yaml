@@ -1,6 +1,10 @@
 spring:
   application:
     name: cortex-spring-boot-starter-example
+  ai:
+    mcp:
+      server:
+        protocol: stateless
 
 cortex:
   ingest:
