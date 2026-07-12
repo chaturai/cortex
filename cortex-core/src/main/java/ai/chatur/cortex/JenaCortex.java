@@ -1,12 +1,11 @@
 package ai.chatur.cortex;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.StringReader;
+import java.io.*;
 import java.util.UUID;
 import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
+import org.apache.jena.ontapi.model.OntModel;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.riot.Lang;
 import org.apache.jena.riot.RDFDataMgr;
@@ -18,13 +17,15 @@ import org.apache.jena.sparql.core.DatasetGraph;
 import org.apache.jena.sparql.graph.GraphFactory;
 import org.apache.jena.system.Txn;
 
-public class JenaIngestService implements IngestService {
+public class JenaCortex implements Cortex {
   DatasetGraph assertions;
+  OntModel ontModel;
   ShaclValidator shaclValidator;
   Shapes shapes;
 
-  public JenaIngestService(Dataset ds, ShaclValidator shaclValidator, Shapes shapes) {
+  public JenaCortex(Dataset ds, OntModel ontModel, ShaclValidator shaclValidator, Shapes shapes) {
     this.assertions = ds.asDatasetGraph();
+    this.ontModel = ontModel;
     this.shaclValidator = shaclValidator;
     this.shapes = shapes;
   }
@@ -53,6 +54,15 @@ public class JenaIngestService implements IngestService {
   }
 
   @Override
+  public String getOntology() throws IOException {
+    StringWriter writer = new StringWriter();
+    try (writer) {
+      RDFDataMgr.write(writer, ontModel, Lang.TTL);
+    }
+    return writer.toString();
+  }
+
+  @Override
   public IngestResult ingest(String ttl) throws IOException {
     StringReader reader = new StringReader(ttl);
     Node graphNode = getGraphNode();
@@ -67,6 +77,17 @@ public class JenaIngestService implements IngestService {
   }
 
   @Override
+  public boolean hasBranch(String uri) {
+    Node graphNode = NodeFactory.createURI(uri);
+    return Txn.calculateRead(assertions, () -> assertions.containsGraph(graphNode));
+  }
+
+  @Override
+  public boolean approve(String branch) {
+    return false;
+  }
+
+  @Override
   public boolean reject(String branch) {
     return Txn.calculateWrite(
         assertions,
@@ -78,5 +99,10 @@ public class JenaIngestService implements IngestService {
           }
           return false;
         });
+  }
+
+  @Override
+  public void writeAssertions(OutputStream os) {
+    Txn.executeRead(assertions, () -> RDFDataMgr.write(os, assertions, Lang.TRIG));
   }
 }

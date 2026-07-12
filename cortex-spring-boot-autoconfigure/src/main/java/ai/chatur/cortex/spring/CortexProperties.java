@@ -1,11 +1,12 @@
-package ai.chatur.cortex.spring.ingest;
+package ai.chatur.cortex.spring;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.core.io.Resource;
 
-@ConfigurationProperties(prefix = "cortex.ingest")
-public record IngestProperties(
-    @DefaultValue(".cortex/db") String location,
+@ConfigurationProperties(prefix = "cortex")
+public record CortexProperties(
     @DefaultValue("false") boolean persistent,
+    @DefaultValue(".cortex/db") String assertionsLocation,
+    @DefaultValue("classpath:ontology.ttl") Resource ontology,
     @DefaultValue("classpath:shapes.ttl") Resource shapes) {}

@@ -1,7 +1,8 @@
 package ai.chatur.cortex.spring.ingest;
 
+import ai.chatur.cortex.Cortex;
 import ai.chatur.cortex.IngestResult;
-import ai.chatur.cortex.IngestService;
+import ai.chatur.cortex.spring.CortexConfiguration;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import org.apache.jena.query.Dataset;
@@ -13,16 +14,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
-@SpringJUnitConfig(IngestConfiguration.class)
+@SpringJUnitConfig(CortexConfiguration.class)
 public class IngestUnitTests {
 
   @Autowired
   @Qualifier("assertions")
   Dataset assertions;
 
-  @Autowired IngestService ingestService;
-
-  @Autowired AssertionRepository assertionRepository;
+  @Autowired Cortex cortex;
 
   @Autowired
   @Value("assertions/valid.ttl")
@@ -40,16 +39,16 @@ public class IngestUnitTests {
   @Test
   void shouldStageValidAssertions() throws IOException {
     String ttl = validAssertion.getContentAsString(Charset.defaultCharset());
-    IngestResult ingestResult = ingestService.ingest(ttl);
+    IngestResult ingestResult = cortex.ingest(ttl);
     assert (ingestResult.valid());
-    assert (assertionRepository.hasBranch(ingestResult.branch()));
+    assert (cortex.hasBranch(ingestResult.branch()));
     assert (ingestResult.errors() == null);
   }
 
   @Test
   void shouldNotStageInvalidAssertions() throws IOException {
     String ttl = invalidAssertion.getContentAsString(Charset.defaultCharset());
-    IngestResult ingestResult = ingestService.ingest(ttl);
+    IngestResult ingestResult = cortex.ingest(ttl);
     assert (!ingestResult.valid());
     assert (ingestResult.branch() == null);
     assert (ingestResult.errors() != null);
