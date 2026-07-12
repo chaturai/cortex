@@ -1,0 +1,22 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+
+@prefix s: <cortex://shapes/> .
+@prefix o: <cortex://ontology/> .
+
+s:UnknownShape a sh:NodeShape ;
+    sh:targetSubjectsOf rdf:type ;
+    sh:property [
+        sh:path rdf:type ;
+        sh:in ( o:Rule o:Condition) ;
+        sh:message "Instance uses a class that does not belong to the ontology." ;
+    ] .
+
+s:RuleShape a sh:NodeShape ;
+    sh:targetClass o:Rule ;
+    sh:property [
+        sh:path o:hasCondition ;
+        sh:class o:Condition ;
+        sh:minCount 1 ;
+        sh:message "a Rule must have at least one Condition" ;
+    ] .
