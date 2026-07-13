@@ -6,7 +6,7 @@ package ai.chatur.cortex;
  * @param valid whether the assertions pass the lint check against the ontology and conform to the
  *     configured SHACL shapes
  * @param branch the name of the branch the assertions were staged on, or {@code null} if validation
- *     failed
+ *     failed or every assertion was already approved and nothing remained to stage
  * @param errors the lint violations or the SHACL validation report, or {@code null} if validation
  *     passed
  */
