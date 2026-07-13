@@ -1,0 +1,21 @@
+{
+  "name": "cortex-schema",
+  "description": "Generate strict SHACL-based cortex ontology resources from plain-English class/property descriptions. Ensures closed-world validation, enforces cardinality/type constraints, and prevents direct assertion of inferred-only classes.",
+  "author": {
+    "name": "Ajay Viswanathan",
+    "email": "ajay.viswanathan@gmail.com"
+  },
+  "homepage": "https://github.com/chaturai/cortex",
+  "repository": "https://github.com/chaturai/cortex",
+  "license": "MIT",
+  "keywords": [
+    "cortex",
+    "ontology",
+    "owl",
+    "shacl",
+    "rdf",
+    "schema",
+    "code-generation",
+    "semantic-web"
+  ]
+}

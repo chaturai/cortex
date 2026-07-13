@@ -5,25 +5,28 @@
 @prefix : <cortex://ontology/> .
 @prefix s: <cortex://shapes/> .
 
-# Common constraints for every assertion node
 s:AssertionShape a sh:NodeShape ;
-    # Reach every assertion node: anything typed, and anything using a known property
     sh:targetSubjectsOf rdf:type ;
     sh:targetSubjectsOf :hasCondition ;
+    sh:targetSubjectsOf :activatedBy ;
+    sh:targetSubjectsOf :blockedBy ;
+    sh:targetSubjectsOf :hasAction ;
+    sh:targetSubjectsOf :hasExpression ;
+    sh:targetSubjectsOf :hasCoordinate ;
+    sh:targetSubjectsOf :hasDimension ;
+    sh:targetSubjectsOf :hasValue ;
 
     sh:nodeKind sh:IRI ;
     sh:pattern "^cortex://[^/?#]+$" ;
     sh:message "assertions must be cortex://{name} IRIs without sub-paths" ;
 
-    # Reject unknown classes; every assertion must be typed
     sh:property [
         sh:path rdf:type ;
         sh:minCount 1 ;
-        sh:in ( :Rule :Condition ) ;
-        sh:message "unknown class: only cortex://ontology/ classes are allowed" ;
+        sh:in ( :Rule :Condition :Action :Expression :Coordinate :Dimension ) ;
+        sh:message "unknown class: only assertable classes are allowed. PositiveCondition and NegativeCondition are inferred-only." ;
     ] ;
 
-    # Every assertion must carry a label and a comment
     sh:property [
         sh:path rdfs:label ;
         sh:minCount 1 ;
@@ -40,23 +43,96 @@ s:AssertionShape a sh:NodeShape ;
 s:RuleShape a sh:NodeShape ;
     sh:targetClass :Rule ;
 
-    # Close the shape: reject any properties not declared below
     sh:closed true ;
     sh:property [ sh:path rdf:type ] ;
     sh:property [ sh:path rdfs:label ] ;
     sh:property [ sh:path rdfs:comment ] ;
 
     sh:property [
-        sh:path :hasCondition ;
+        sh:path :activatedBy ;
         sh:class :Condition ;
         sh:minCount 1 ;
-        sh:message "a Rule must have at least one Condition" ;
+        sh:message "a Rule must have at least one activatedBy" ;
+    ] ;
+
+    sh:property [
+        sh:path :blockedBy ;
+        sh:class :Condition ;
+        sh:message "blockedBy, if present, must reference a Condition" ;
+    ] ;
+
+    sh:property [
+        sh:path :hasAction ;
+        sh:class :Action ;
+        sh:minCount 1 ;
+        sh:message "a Rule must have at least one hasAction" ;
     ] .
 
 s:ConditionShape a sh:NodeShape ;
     sh:targetClass :Condition ;
 
-    # Conditions carry nothing beyond type, label, and comment
+    sh:closed true ;
+    sh:property [ sh:path rdf:type ] ;
+    sh:property [ sh:path rdfs:label ] ;
+    sh:property [ sh:path rdfs:comment ] ;
+
+    sh:property [
+        sh:path :hasExpression ;
+        sh:class :Expression ;
+        sh:minCount 1 ;
+        sh:message "a Condition must have at least one hasExpression" ;
+    ] .
+
+s:ActionShape a sh:NodeShape ;
+    sh:targetClass :Action ;
+
+    sh:closed true ;
+    sh:property [ sh:path rdf:type ] ;
+    sh:property [ sh:path rdfs:label ] ;
+    sh:property [ sh:path rdfs:comment ] .
+
+s:ExpressionShape a sh:NodeShape ;
+    sh:targetClass :Expression ;
+
+    sh:closed true ;
+    sh:property [ sh:path rdf:type ] ;
+    sh:property [ sh:path rdfs:label ] ;
+    sh:property [ sh:path rdfs:comment ] ;
+
+    sh:property [
+        sh:path :hasCoordinate ;
+        sh:class :Coordinate ;
+        sh:minCount 1 ;
+        sh:message "an Expression must have at least one hasCoordinate" ;
+    ] .
+
+s:CoordinateShape a sh:NodeShape ;
+    sh:targetClass :Coordinate ;
+
+    sh:closed true ;
+    sh:property [ sh:path rdf:type ] ;
+    sh:property [ sh:path rdfs:label ] ;
+    sh:property [ sh:path rdfs:comment ] ;
+
+    sh:property [
+        sh:path :hasDimension ;
+        sh:class :Dimension ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:message "a Coordinate must have exactly one hasDimension" ;
+    ] ;
+
+    sh:property [
+        sh:path :hasValue ;
+        sh:nodeKind sh:Literal ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:message "a Coordinate must have exactly one hasValue (any literal type)" ;
+    ] .
+
+s:DimensionShape a sh:NodeShape ;
+    sh:targetClass :Dimension ;
+
     sh:closed true ;
     sh:property [ sh:path rdf:type ] ;
     sh:property [ sh:path rdfs:label ] ;
