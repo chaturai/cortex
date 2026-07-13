@@ -7,7 +7,7 @@ description =
   "Spring Boot auto-configuration for Cortex, including an MCP server exposing the knowledge graph to AI agents"
 
 dependencies {
-  implementation(project(":cortex-core"))
+  api(project(":cortex-core"))
 
   implementation(libs.slf4j.api)
 
