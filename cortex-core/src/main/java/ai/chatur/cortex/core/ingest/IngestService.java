@@ -1,7 +1,9 @@
 package ai.chatur.cortex.core.ingest;
 
 import ai.chatur.cortex.IngestResult;
+import ai.chatur.cortex.LintResult;
 import ai.chatur.cortex.core.CortexNames;
+import ai.chatur.cortex.core.lint.LintService;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.StringReader;
@@ -33,15 +35,17 @@ import org.slf4j.LoggerFactory;
 /**
  * Manages the branch-based ingestion workflow of the knowledge graph.
  *
- * <p>Incoming assertions are validated against SHACL shapes and staged on a branch — a named graph
- * within the assertions dataset. Approving a branch reifies each staged statement with a {@code
- * dcterms:created} timestamp and merges it into the default graph; rejecting a branch discards it.
+ * <p>Incoming assertions are linted against the ontology, validated against SHACL shapes, and
+ * staged on a branch — a named graph within the assertions dataset. Approving a branch reifies each
+ * staged statement with a {@code dcterms:created} timestamp and merges it into the default graph;
+ * rejecting a branch discards it.
  */
 public class IngestService {
 
   private static final Logger log = LoggerFactory.getLogger(IngestService.class);
 
   private final Dataset assertions;
+  private final LintService lintService;
   private final ShaclValidator shaclValidator;
   private final Shapes shapes;
 
@@ -49,11 +53,14 @@ public class IngestService {
    * Creates the service.
    *
    * @param assertions the dataset holding the approved assertions and the staged branches
+   * @param lintService the lint check incoming assertions must pass
    * @param shaclValidator the validator applied to incoming assertions
    * @param shapes the SHACL shapes incoming assertions must conform to
    */
-  public IngestService(Dataset assertions, ShaclValidator shaclValidator, Shapes shapes) {
+  public IngestService(
+      Dataset assertions, LintService lintService, ShaclValidator shaclValidator, Shapes shapes) {
     this.assertions = assertions;
+    this.lintService = lintService;
     this.shaclValidator = shaclValidator;
     this.shapes = shapes;
   }
@@ -71,16 +78,22 @@ public class IngestService {
   }
 
   /**
-   * Validates the given assertions and stages them on a new branch.
+   * Lints and validates the given assertions and stages them on a new branch.
    *
-   * <p>Assertions that cannot be parsed or do not conform to the shapes are not staged; the problem
-   * is reported in the result instead.
+   * <p>Assertions that cannot be parsed, fail the {@link LintService lint check} against the
+   * ontology, or do not conform to the shapes are not staged; the problem is reported in the result
+   * instead.
    *
    * @param ttl RDF assertions in Turtle syntax
    * @return the outcome, carrying either the name of the created branch or the errors
    * @throws IOException if the validation report cannot be rendered
    */
   public IngestResult ingest(String ttl) throws IOException {
+    LintResult lintResult = lintService.lint(ttl);
+    if (!lintResult.valid()) {
+      log.warn("Rejected ingest failing lint check: {}", lintResult.errors());
+      return new IngestResult(false, null, lintResult.errors());
+    }
     Resource namedModel = CortexNames.getResource();
     Model model = ModelFactory.createDefaultModel();
     try {

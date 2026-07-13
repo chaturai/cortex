@@ -2,6 +2,7 @@ package ai.chatur.cortex.spring.ingest;
 
 import ai.chatur.cortex.Cortex;
 import ai.chatur.cortex.core.ingest.IngestService;
+import ai.chatur.cortex.core.lint.LintService;
 import ai.chatur.cortex.spring.CortexProperties;
 import java.io.IOException;
 import org.apache.jena.query.Dataset;
@@ -16,8 +17,9 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * Configures ingestion: the TDB2 dataset holding assertions (in-memory or persistent, per the
- * {@code cortex.persistent} property), SHACL validation, the {@link IngestService}, the web UI
- * controller for reviewing branches, and the MCP ingest tool.
+ * {@code cortex.persistent} property), SHACL validation, the {@link IngestService} (which lints
+ * incoming assertions against the ontology before validating them), the web UI controller for
+ * reviewing branches, and the MCP ingest tool.
  */
 @Configuration
 public class IngestConfiguration {
@@ -49,8 +51,11 @@ public class IngestConfiguration {
 
   @Bean
   IngestService ingestService(
-      @Qualifier("assertions") Dataset assertions, ShaclValidator shaclValidator, Shapes shapes) {
-    return new IngestService(assertions, shaclValidator, shapes);
+      @Qualifier("assertions") Dataset assertions,
+      LintService lintService,
+      ShaclValidator shaclValidator,
+      Shapes shapes) {
+    return new IngestService(assertions, lintService, shaclValidator, shapes);
   }
 
   @Bean
