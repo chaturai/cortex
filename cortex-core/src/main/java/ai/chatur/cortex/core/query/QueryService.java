@@ -1,7 +1,8 @@
 package ai.chatur.cortex.core.query;
 
 import ai.chatur.cortex.ProvenancedStatement;
-import ai.chatur.cortex.core.CortexNames;
+import ai.chatur.cortex.SearchResult;
+import ai.chatur.cortex.core.CortexNamespace;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,6 +38,15 @@ import org.slf4j.LoggerFactory;
 public class QueryService {
 
   private static final Logger log = LoggerFactory.getLogger(QueryService.class);
+
+  private static final Query SEARCH_QUERY =
+      QueryFactory.create(
+          """
+          PREFIX text: <http://jena.apache.org/text#>
+          SELECT ?subject ?score ?match
+          WHERE { (?subject ?score ?match) text:query ?text }
+          ORDER BY DESC(?score)
+          """);
 
   private final Dataset inferences;
   private final OntModel ontModel;
@@ -87,8 +97,8 @@ public class QueryService {
                     solution -> {
                       Resource instance = solution.getResource("instance");
                       if (instance.isURIResource()
-                          && instance.getURI().startsWith(CortexNames.NS)) {
-                        instances.add(instance.getURI().substring(CortexNames.NS.length()));
+                          && instance.getURI().startsWith(CortexNamespace.NS)) {
+                        instances.add(instance.getURI().substring(CortexNamespace.NS.length()));
                       }
                     });
             instances.sort(Comparator.naturalOrder());
@@ -113,18 +123,19 @@ public class QueryService {
         QueryFactory.create(
             """
             PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-            PREFIX dcterms: <http://purl.org/dc/terms/>
+            PREFIX prov: <http://www.w3.org/ns/prov#>
             SELECT ?predicate ?object ?created
             WHERE {
               ?subject ?predicate ?object .
               OPTIONAL {
                 ?reifier rdf:reifies <<( ?subject ?predicate ?object )>> .
-                ?reifier dcterms:created ?created .
+                ?reifier prov:wasGeneratedBy ?activity .
+                ?activity prov:endedAtTime ?created .
               }
             }
             ORDER BY ?predicate ?object
             """);
-    Resource subject = CortexNames.getResource(id);
+    Resource subject = CortexNamespace.getResource(id);
     return Txn.calculateRead(
         inferences,
         () -> {
@@ -200,23 +211,59 @@ public class QueryService {
    * @return the matches with their relevance scores, formatted as text and ranked best first
    */
   public String search(String text) {
-    Query query =
-        QueryFactory.create(
-            """
-            PREFIX text: <http://jena.apache.org/text#>
-            SELECT ?subject ?score ?match
-            WHERE { (?subject ?score ?match) text:query ?text }
-            ORDER BY DESC(?score)
-            """);
     Literal literal = ResourceFactory.createPlainLiteral(getFuzzyQuery(text));
     return Txn.calculateRead(
         inferences,
         () -> {
           QueryExecution queryExecution =
-              QueryExecution.dataset(inferences).query(query).substitution("text", literal).build();
+              QueryExecution.dataset(inferences)
+                  .query(SEARCH_QUERY)
+                  .substitution("text", literal)
+                  .build();
           try (queryExecution) {
             ResultSet resultSet = queryExecution.execSelect();
             return ResultSetFormatter.asText(resultSet);
+          }
+        });
+  }
+
+  /**
+   * Searches the full-text index and returns the matching subjects.
+   *
+   * <p>Each term of the input is matched approximately, so small typos and spelling variations
+   * still find their target.
+   *
+   * @param text the text to search for
+   * @return the matching subjects ranked best first, empty if nothing matches
+   */
+  public List<SearchResult> searchSubjects(String text) {
+    Literal literal = ResourceFactory.createPlainLiteral(getFuzzyQuery(text));
+    return Txn.calculateRead(
+        inferences,
+        () -> {
+          QueryExecution queryExecution =
+              QueryExecution.dataset(inferences)
+                  .query(SEARCH_QUERY)
+                  .substitution("text", literal)
+                  .build();
+          try (queryExecution) {
+            List<SearchResult> results = new ArrayList<>();
+            queryExecution
+                .execSelect()
+                .forEachRemaining(
+                    solution -> {
+                      Resource subject = solution.getResource("subject");
+                      if (subject.isURIResource()
+                          && subject.getURI().startsWith(CortexNamespace.NS)) {
+                        results.add(
+                            new SearchResult(
+                                subject.getURI().substring(CortexNamespace.NS.length()),
+                                solution.contains("match")
+                                    ? solution.getLiteral("match").getLexicalForm()
+                                    : null));
+                      }
+                    });
+            return results;
           }
         });
   }

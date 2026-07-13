@@ -5,12 +5,12 @@ import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.rdf.model.ResourceFactory;
 
 /** Creates resource names in the {@code cortex://} namespace used by the knowledge graph. */
-public final class CortexNames {
+public final class CortexNamespace {
 
   /** The URI namespace of all resources managed by Cortex. */
   public static final String NS = "cortex://";
 
-  private CortexNames() {}
+  private CortexNamespace() {}
 
   /**
    * Returns the resource with the given name in the Cortex namespace.

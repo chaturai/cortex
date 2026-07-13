@@ -73,6 +73,21 @@ public class JenaCortex implements Cortex {
   }
 
   @Override
+  public BranchInfo getBranchInfo(String branch) {
+    return ingestService.getBranchInfo(branch);
+  }
+
+  @Override
+  public List<BranchSubject> getBranchSubjects(String branch) {
+    return ingestService.getBranchSubjects(branch);
+  }
+
+  @Override
+  public boolean updateBranch(String branch, List<BranchChange> changes) {
+    return ingestService.updateBranch(branch, changes);
+  }
+
+  @Override
   public void approve(String branch) {
     if (ingestService.approve(branch)) inferenceService.recomputeInference();
   }
@@ -110,6 +125,11 @@ public class JenaCortex implements Cortex {
   @Override
   public String search(String text) {
     return queryService.search(text);
+  }
+
+  @Override
+  public List<SearchResult> searchSubjects(String text) {
+    return queryService.searchSubjects(text);
   }
 
   @Override
