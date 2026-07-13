@@ -1,6 +1,7 @@
 @prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
 
 @prefix : <cortex://ontology/> .
 @prefix s: <cortex://shapes/> .
@@ -23,7 +24,7 @@ s:AssertionShape a sh:NodeShape ;
     sh:property [
         sh:path rdf:type ;
         sh:minCount 1 ;
-        sh:in ( :Rule :Condition :Action :Expression :Coordinate :Dimension ) ;
+        sh:in ( :Rule :Condition :Action :Expression :Coordinate :Dimension prov:Activity ) ;
         sh:message "unknown class: only assertable classes are allowed. PositiveCondition and NegativeCondition are inferred-only." ;
     ] ;
 

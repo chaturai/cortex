@@ -2,8 +2,10 @@ package ai.chatur.cortex.spring.query;
 
 import ai.chatur.cortex.Cortex;
 import ai.chatur.cortex.IngestResult;
+import ai.chatur.cortex.SearchResult;
 import ai.chatur.cortex.spring.CortexConfiguration;
 import java.io.IOException;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
@@ -28,11 +30,17 @@ public class SearchUnitTests {
           rdfs:label "quarterly report" .
 """;
 
+  void approve(String ttl) throws IOException {
+    IngestResult ingestResult = cortex.ingest(ttl);
+    assert (ingestResult.valid());
+    if (ingestResult.branch() != null) {
+      cortex.approve(ingestResult.branch());
+    }
+  }
+
   @Test
   void shouldFindApprovedResourcesByLabel() throws IOException {
-    IngestResult ingestResult = cortex.ingest(TTL);
-    assert (ingestResult.valid());
-    cortex.approve(ingestResult.branch());
+    approve(TTL);
 
     String result = cortex.search("quarterly");
     assert (result != null);
@@ -41,11 +49,23 @@ public class SearchUnitTests {
 
   @Test
   void toolShouldSearch() throws IOException {
-    IngestResult ingestResult = cortex.ingest(TTL);
-    assert (ingestResult.valid());
-    cortex.approve(ingestResult.branch());
+    approve(TTL);
 
     String result = queryTools.search("report");
     assert (result.contains("SearchTask"));
+  }
+
+  @Test
+  void shouldSearchSubjects() throws IOException {
+    approve(TTL);
+
+    List<SearchResult> results = cortex.searchSubjects("quarterly");
+    assert (!results.isEmpty());
+    SearchResult hit =
+        results.stream()
+            .filter(result -> result.subject().contains("SearchTask"))
+            .findFirst()
+            .orElseThrow();
+    assert (hit.match() != null);
   }
 }
