@@ -1,6 +1,7 @@
 package ai.chatur.cortex.spring.ingest;
 
 import ai.chatur.cortex.BranchChange;
+import ai.chatur.cortex.BranchRename;
 import ai.chatur.cortex.Cortex;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
@@ -58,6 +59,15 @@ public class IngestController {
   public ResponseEntity<Void> updateBranch(
       @PathVariable("branch") String branch, @RequestBody List<BranchChange> changes) {
     return cortex.updateBranch(branch, changes)
+        ? ResponseEntity.noContent().build()
+        : ResponseEntity.notFound().build();
+  }
+
+  @PostMapping("/branches/{branch}/rename")
+  @ResponseBody
+  public ResponseEntity<Void> renameBranchSubjects(
+      @PathVariable("branch") String branch, @RequestBody List<BranchRename> renames) {
+    return cortex.renameBranchSubjects(branch, renames)
         ? ResponseEntity.noContent().build()
         : ResponseEntity.notFound().build();
   }

@@ -19,7 +19,13 @@
           </div>
         </div>
         <div class="branch-subject" th:each="subject : ${subjects}">
-          <h2 class="subject-heading" th:text="${subject.name}"></h2>
+          <h2
+            class="subject-heading"
+            contenteditable="plaintext-only"
+            spellcheck="false"
+            th:text="${subject.name}"
+            th:data-uri="${subject.uri}"
+            th:data-name="${subject.name}"></h2>
           <ul class="statement-list">
             <li
               class="statement-item statement-asserted"

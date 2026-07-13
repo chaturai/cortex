@@ -2,6 +2,7 @@ package ai.chatur.cortex.spring.ingest;
 
 import ai.chatur.cortex.BranchChange;
 import ai.chatur.cortex.BranchInfo;
+import ai.chatur.cortex.BranchRename;
 import ai.chatur.cortex.BranchStatement;
 import ai.chatur.cortex.BranchSubject;
 import ai.chatur.cortex.Cortex;
@@ -187,6 +188,36 @@ public class IngestUnitTests {
     List<BranchStatement> statements = cortex.getBranchSubjects(branch).getFirst().statements();
     assert (statements.size() == 1);
     assert (statements.getFirst().object().equals("cortex://assertions/EditedAgent"));
+  }
+
+  @Test
+  void shouldRenameBranchSubjects() throws IOException {
+    IngestResult ingestResult = cortex.ingest(freshAssertion());
+    String branch = ingestResult.branch();
+
+    BranchSubject subject = cortex.getBranchSubjects(branch).getFirst();
+    String agent = subject.statements().getFirst().object();
+
+    boolean renamed =
+        cortex.renameBranchSubjects(
+            branch,
+            List.of(
+                new BranchRename(subject.uri(), "cortex://assertions/RenamedTask"),
+                new BranchRename(agent, "cortex://assertions/RenamedAgent")));
+    assert (renamed);
+
+    List<BranchSubject> subjects = cortex.getBranchSubjects(branch);
+    assert (subjects.size() == 2);
+    assert (subjects.getFirst().uri().equals("cortex://assertions/RenamedTask"));
+    assert (subjects.getFirst().name().equals("RenamedTask"));
+    // assert (subjects
+    //     .getFirst()
+    //     .statements()
+    //     .getFirst()
+    //     .object()
+    //     .equals("cortex://assertions/RenamedAgent"));
+
+    assert (!cortex.renameBranchSubjects("unknown-branch", List.of()));
   }
 
   @Test

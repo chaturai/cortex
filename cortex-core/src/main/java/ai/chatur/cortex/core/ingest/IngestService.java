@@ -2,6 +2,7 @@ package ai.chatur.cortex.core.ingest;
 
 import ai.chatur.cortex.BranchChange;
 import ai.chatur.cortex.BranchInfo;
+import ai.chatur.cortex.BranchRename;
 import ai.chatur.cortex.BranchStatement;
 import ai.chatur.cortex.BranchSubject;
 import ai.chatur.cortex.IngestResult;
@@ -313,6 +314,59 @@ public class IngestService {
     collector.txnCommit();
     RDFPatchOps.applyChange(assertions.asDatasetGraph(), collector.getRDFPatch());
     log.info("Updated branch {} with {} changes", branch, changes.size());
+    return true;
+  }
+
+  /**
+   * Renames subjects staged on the given branch, rewriting every staged statement in which a
+   * renamed subject appears — as subject or object — to use its new IRI, as an RDF patch on the
+   * branch graph.
+   *
+   * <p>Renames addressing the provenance activity of the branch are ignored.
+   *
+   * @param branch the branch name
+   * @param renames the renames to apply
+   * @return {@code true} if the branch existed and the renames were applied
+   */
+  public boolean renameBranchSubjects(String branch, List<BranchRename> renames) {
+    if (!hasBranch(branch)) {
+      log.warn("Cannot rename subjects on unknown branch {}", branch);
+      return false;
+    }
+    Resource namedModel = CortexNamespace.getResource(branch);
+    RDFChangesCollector collector = new RDFChangesCollector();
+    collector.txnBegin();
+    for (BranchRename rename : renames) {
+      if (namedModel.getURI().equals(rename.subject())) {
+        log.warn("Ignoring rename of the provenance activity of branch {}", branch);
+        continue;
+      }
+      Node subject = NodeFactory.createURI(rename.subject());
+      Node newSubject = NodeFactory.createURI(rename.newSubject());
+      Txn.executeRead(
+          assertions,
+          () ->
+              assertions.getNamedModel(namedModel).getGraph().stream()
+                  .filter(
+                      triple ->
+                          triple.getSubject().equals(subject) || triple.getObject().equals(subject))
+                  .forEach(
+                      triple -> {
+                        collector.delete(
+                            namedModel.asNode(),
+                            triple.getSubject(),
+                            triple.getPredicate(),
+                            triple.getObject());
+                        collector.add(
+                            namedModel.asNode(),
+                            triple.getSubject().equals(subject) ? newSubject : triple.getSubject(),
+                            triple.getPredicate(),
+                            triple.getObject().equals(subject) ? newSubject : triple.getObject());
+                      }));
+    }
+    collector.txnCommit();
+    RDFPatchOps.applyChange(assertions.asDatasetGraph(), collector.getRDFPatch());
+    log.info("Renamed {} subjects on branch {}", renames.size(), branch);
     return true;
   }
 
