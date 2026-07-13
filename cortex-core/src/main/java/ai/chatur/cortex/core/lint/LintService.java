@@ -1,6 +1,7 @@
 package ai.chatur.cortex.core.lint;
 
 import ai.chatur.cortex.LintResult;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
@@ -15,6 +16,10 @@ import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.riot.Lang;
 import org.apache.jena.riot.RDFDataMgr;
 import org.apache.jena.riot.RiotException;
+import org.apache.jena.shacl.ShaclValidator;
+import org.apache.jena.shacl.Shapes;
+import org.apache.jena.shacl.ValidationReport;
+import org.apache.jena.shacl.lib.ShLib;
 import org.apache.jena.vocabulary.OWL2;
 import org.apache.jena.vocabulary.RDF;
 import org.apache.jena.vocabulary.RDFS;
@@ -22,7 +27,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Lints assertions against the ontology before they are ingested.
+ * Lints assertions against the ontology and validates them against SHACL shapes before they are
+ * ingested.
  *
  * <p>Every property used must be declared in the ontology, and every {@code rdf:type} object must
  * be a class declared in the ontology. The only terms permitted beyond the ontology are {@code
@@ -44,15 +50,46 @@ public class LintService {
 
   private final Set<String> properties;
   private final Set<String> classes;
+  private final ShaclValidator shaclValidator;
+  private final Shapes shapes;
 
   /**
    * Creates the service, indexing the classes and properties declared in the ontology.
    *
    * @param ontModel the ontology model
+   * @param shaclValidator the validator applied to incoming assertions
+   * @param shapes the SHACL shapes incoming assertions must conform to
    */
-  public LintService(OntModel ontModel) {
+  public LintService(OntModel ontModel, ShaclValidator shaclValidator, Shapes shapes) {
     this.properties = getDeclarations(ontModel, PROPERTY_TYPES);
     this.classes = getDeclarations(ontModel, CLASS_TYPES);
+    this.shaclValidator = shaclValidator;
+    this.shapes = shapes;
+  }
+
+  /**
+   * Validates the given model against the configured SHACL shapes.
+   *
+   * @param model the model to validate
+   * @return the validation report
+   */
+  public ValidationReport validate(Model model) {
+    return shaclValidator.validate(shapes, model.getGraph());
+  }
+
+  /**
+   * Renders the violations of a validation report.
+   *
+   * @param validationReport the report to render
+   * @return the printed report, or {@code null} if the report conforms
+   * @throws IOException if the report cannot be rendered
+   */
+  public String getErrors(ValidationReport validationReport) throws IOException {
+    if (validationReport.conforms()) return null;
+    try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
+      ShLib.printReport(os, validationReport);
+      return os.toString();
+    }
   }
 
   Set<String> getDeclarations(Model ontModel, Set<Resource> types) {

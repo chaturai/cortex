@@ -1,6 +1,7 @@
 @prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
 
 @prefix : <cortex://ontology/> .
 @prefix s: <cortex://shapes/> .
@@ -9,7 +10,7 @@ s:UnknownShape a sh:NodeShape ;
     sh:targetSubjectsOf rdf:type ;
     sh:property [
         sh:path rdf:type ;
-        sh:in ( :Task :Agent) ;
+        sh:in ( :Task :Agent prov:Activity ) ;
         sh:message "Instance uses a class that does not belong to the ontology." ;
     ] .
 

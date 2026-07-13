@@ -21,7 +21,10 @@ public class IngestTools {
   @McpTool(
       description =
           "Ensure that input assertions are in text/turtle format and based on cortex://ontology."
-              + " Always call the Lint tool first and ingest only the validated TTL it returns",
+              + " Always call the Lint tool first and ingest only the validated TTL it returns."
+              + " Before generating new data, use the Search or Query tools to find out whether"
+              + " the instances involved already exist in the knowledge graph, and reuse their"
+              + " IRIs, so that the same instance is never ingested under multiple names",
       annotations =
           @McpTool.McpAnnotations(title = "Ingest", destructiveHint = false, openWorldHint = false))
   IngestResult ingest(

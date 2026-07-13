@@ -27,11 +27,12 @@ public class StatsService {
       QueryFactory.create(
           """
           PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-          PREFIX dcterms: <http://purl.org/dc/terms/>
+          PREFIX prov: <http://www.w3.org/ns/prov#>
           SELECT (COUNT(*) AS ?count)
           WHERE {
             ?reifier rdf:reifies ?statement ;
-                     dcterms:created ?created .
+                     prov:wasGeneratedBy ?activity .
+            ?activity prov:endedAtTime ?created .
             FILTER (?created >= ?start)
           }
           """);

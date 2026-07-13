@@ -7,7 +7,7 @@ description =
   "Spring Boot auto-configuration for Cortex, including an MCP server exposing the knowledge graph to AI agents"
 
 dependencies {
-  implementation(project(":cortex-core"))
+  api(project(":cortex-core"))
 
   implementation(libs.slf4j.api)
 
@@ -20,5 +20,8 @@ dependencies {
   testImplementation(platform(libs.junit.bom))
   testImplementation("org.junit.jupiter:junit-jupiter")
   testImplementation("org.springframework.boot:spring-boot-starter-test")
+  testImplementation("org.springframework.boot:spring-boot-starter-webmvc")
+  testImplementation("org.springframework.boot:spring-boot-starter-thymeleaf")
+  testImplementation("org.springframework.ai:spring-ai-starter-mcp-client")
   testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }

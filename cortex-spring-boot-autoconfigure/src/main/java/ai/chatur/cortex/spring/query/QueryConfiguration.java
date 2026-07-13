@@ -12,6 +12,7 @@ import org.apache.jena.query.DatasetFactory;
 import org.apache.jena.query.text.EntityDefinition;
 import org.apache.jena.query.text.TextDatasetFactory;
 import org.apache.jena.query.text.TextIndexConfig;
+import org.apache.jena.vocabulary.RDF;
 import org.apache.jena.vocabulary.RDFS;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.store.ByteBuffersDirectory;
@@ -25,8 +26,9 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * Configures querying: the inference dataset wrapped with a Lucene full-text index over {@code
- * rdfs:label} (in-memory or persistent, per the {@code cortex.persistent} property), the {@link
- * QueryService}, and the MCP query and search tools.
+ * rdfs:label}, {@code rdfs:comment}, and {@code rdf:type} (in-memory or persistent, per the {@code
+ * cortex.persistent} property), the {@link QueryService}, the web UI search controller, and the MCP
+ * query and search tools.
  */
 @Configuration
 public class QueryConfiguration {
@@ -38,6 +40,8 @@ public class QueryConfiguration {
   Dataset inferences(CortexProperties properties) {
     Dataset baseDataset = DatasetFactory.createTxnMem();
     EntityDefinition entityDef = new EntityDefinition("uri", "text", RDFS.label);
+    entityDef.set("text", RDFS.comment.asNode());
+    entityDef.set("text", RDF.type.asNode());
 
     Directory directory;
     if (properties.persistent()) {
@@ -54,6 +58,7 @@ public class QueryConfiguration {
 
     TextIndexConfig indexConfig = new TextIndexConfig(entityDef);
     indexConfig.setQueryAnalyzer(new StandardAnalyzer());
+    indexConfig.setValueStored(true);
 
     return TextDatasetFactory.createLucene(baseDataset, directory, indexConfig);
   }
@@ -66,5 +71,10 @@ public class QueryConfiguration {
   @Bean
   QueryTools queryTools(Cortex cortex) {
     return new QueryTools(cortex);
+  }
+
+  @Bean
+  SearchController searchController(Cortex cortex) {
+    return new SearchController(cortex);
   }
 }

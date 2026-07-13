@@ -1,44 +1,57 @@
 package ai.chatur.cortex.core.ingest;
 
+import ai.chatur.cortex.BranchChange;
+import ai.chatur.cortex.BranchInfo;
+import ai.chatur.cortex.BranchStatement;
+import ai.chatur.cortex.BranchSubject;
 import ai.chatur.cortex.IngestResult;
 import ai.chatur.cortex.LintResult;
-import ai.chatur.cortex.core.CortexNames;
+import ai.chatur.cortex.core.CortexNamespace;
+import ai.chatur.cortex.core.PROV;
 import ai.chatur.cortex.core.lint.LintService;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import org.apache.jena.atlas.iterator.Iter;
+import org.apache.jena.graph.Node;
+import org.apache.jena.graph.NodeFactory;
+import org.apache.jena.ontapi.model.OntModel;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.rdf.model.Literal;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
+import org.apache.jena.rdf.model.RDFNode;
 import org.apache.jena.rdf.model.Resource;
+import org.apache.jena.rdf.model.Statement;
 import org.apache.jena.rdfpatch.RDFPatch;
 import org.apache.jena.rdfpatch.RDFPatchOps;
 import org.apache.jena.rdfpatch.changes.RDFChangesCollector;
 import org.apache.jena.riot.Lang;
 import org.apache.jena.riot.RDFDataMgr;
 import org.apache.jena.riot.RiotException;
-import org.apache.jena.shacl.ShaclValidator;
-import org.apache.jena.shacl.Shapes;
 import org.apache.jena.shacl.ValidationReport;
-import org.apache.jena.shacl.lib.ShLib;
 import org.apache.jena.sparql.core.Quad;
 import org.apache.jena.system.Txn;
-import org.apache.jena.vocabulary.DCTerms;
+import org.apache.jena.vocabulary.RDF;
+import org.apache.jena.vocabulary.RDFS;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * Manages the branch-based ingestion workflow of the knowledge graph.
  *
- * <p>Incoming assertions are linted against the ontology, validated against SHACL shapes, and
- * staged on a branch — a named graph within the assertions dataset. Approving a branch reifies each
- * staged statement with a {@code dcterms:created} timestamp and merges it into the default graph;
- * rejecting a branch discards it.
+ * <p>Incoming assertions are linted against the ontology, validated against SHACL shapes together
+ * with the approved assertions, trimmed of triples already approved, and staged on a branch — a
+ * named graph within the assertions dataset. Every branch carries a {@link PROV#Activity provenance
+ * activity} recording the ingestion. Reviewers may delete or edit staged statements. Approving a
+ * branch reifies each staged statement, links it to the activity, and merges everything into the
+ * default graph; rejecting a branch discards it.
  */
 public class IngestService {
 
@@ -46,35 +59,19 @@ public class IngestService {
 
   private final Dataset assertions;
   private final LintService lintService;
-  private final ShaclValidator shaclValidator;
-  private final Shapes shapes;
+  private final OntModel ontModel;
 
   /**
    * Creates the service.
    *
    * @param assertions the dataset holding the approved assertions and the staged branches
-   * @param lintService the lint check incoming assertions must pass
-   * @param shaclValidator the validator applied to incoming assertions
-   * @param shapes the SHACL shapes incoming assertions must conform to
+   * @param lintService the lint check and SHACL validation incoming assertions must pass
+   * @param ontModel the ontology model, used to abbreviate terms for display
    */
-  public IngestService(
-      Dataset assertions, LintService lintService, ShaclValidator shaclValidator, Shapes shapes) {
+  public IngestService(Dataset assertions, LintService lintService, OntModel ontModel) {
     this.assertions = assertions;
     this.lintService = lintService;
-    this.shaclValidator = shaclValidator;
-    this.shapes = shapes;
-  }
-
-  ValidationReport validate(Model model) {
-    return shaclValidator.validate(shapes, model.getGraph());
-  }
-
-  String getErrors(ValidationReport validationReport) throws IOException {
-    if (validationReport.conforms()) return null;
-    try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
-      ShLib.printReport(os, validationReport);
-      return os.toString();
-    }
+    this.ontModel = ontModel;
   }
 
   /**
@@ -82,10 +79,17 @@ public class IngestService {
    *
    * <p>Assertions that cannot be parsed, fail the {@link LintService lint check} against the
    * ontology, or do not conform to the shapes are not staged; the problem is reported in the result
-   * instead.
+   * instead. The shapes are validated against the union of the approved assertions and the incoming
+   * ones, so incoming assertions may rely on already approved statements to conform.
+   *
+   * <p>Incoming triples already present among the approved assertions are trimmed before staging,
+   * so a branch only ever carries novel statements. If every triple is already approved, nothing is
+   * staged and the result carries no branch. The staged branch also carries a {@link PROV#Activity
+   * provenance activity} recording when the ingestion was staged.
    *
    * @param ttl RDF assertions in Turtle syntax
-   * @return the outcome, carrying either the name of the created branch or the errors
+   * @return the outcome, carrying either the name of the created branch — {@code null} if every
+   *     triple was already approved — or the errors
    * @throws IOException if the validation report cannot be rendered
    */
   public IngestResult ingest(String ttl) throws IOException {
@@ -94,7 +98,6 @@ public class IngestService {
       log.warn("Rejected ingest failing lint check: {}", lintResult.errors());
       return new IngestResult(false, null, lintResult.errors());
     }
-    Resource namedModel = CortexNames.getResource();
     Model model = ModelFactory.createDefaultModel();
     try {
       RDFDataMgr.read(model, new StringReader(ttl), null, Lang.TTL);
@@ -102,15 +105,53 @@ public class IngestService {
       log.warn("Rejected ingest of malformed Turtle: {}", e.getMessage());
       return new IngestResult(false, null, e.getMessage());
     }
-    ValidationReport validationReport = validate(model);
-    if (validationReport.conforms()) {
-      Txn.executeWrite(assertions, () -> assertions.addNamedModel(namedModel, model));
-      log.info("Staged {} triples on branch {}", model.size(), namedModel.getLocalName());
-      return new IngestResult(true, namedModel.getLocalName(), null);
+    ValidationReport validationReport =
+        Txn.calculateRead(
+            assertions,
+            () ->
+                lintService.validate(
+                    ModelFactory.createUnion(assertions.getDefaultModel(), model)));
+    if (!validationReport.conforms()) {
+      String errors = lintService.getErrors(validationReport);
+      log.warn("Rejected ingest of {} triples failing SHACL validation: {}", model.size(), errors);
+      return new IngestResult(false, null, errors);
     }
-    String errors = getErrors(validationReport);
-    log.warn("Rejected ingest of {} triples failing SHACL validation: {}", model.size(), errors);
-    return new IngestResult(false, null, errors);
+    Model novel =
+        Txn.calculateRead(assertions, () -> model.difference(assertions.getDefaultModel()));
+    if (novel.isEmpty()) {
+      log.info("Nothing to stage: all {} triples are already approved", model.size());
+      return new IngestResult(true, null, null);
+    }
+    Resource namedModel = CortexNamespace.getResource();
+    RDFChangesCollector collector = new RDFChangesCollector();
+    collector.txnBegin();
+    getActivity(novel, namedModel).getGraph().stream()
+        .forEach(
+            triple ->
+                collector.add(
+                    namedModel.asNode(),
+                    triple.getSubject(),
+                    triple.getPredicate(),
+                    triple.getObject()));
+    collector.txnCommit();
+    RDFPatchOps.applyChange(assertions.asDatasetGraph(), collector.getRDFPatch());
+    log.info(
+        "Staged {} of {} triples on branch {}",
+        novel.size(),
+        model.size(),
+        namedModel.getLocalName());
+    return new IngestResult(true, namedModel.getLocalName(), null);
+  }
+
+  Model getActivity(Model novel, Resource activity) {
+    Model staged = ModelFactory.createDefaultModel();
+    staged.add(novel);
+    Literal now = staged.createTypedLiteral(Calendar.getInstance());
+    staged.add(activity, RDF.type, PROV.Activity);
+    staged.add(activity, RDFS.label, activity.getLocalName());
+    staged.add(activity, RDFS.comment, "Ingestion of the assertions staged on this branch");
+    staged.add(activity, PROV.startedAtTime, now);
+    return staged;
   }
 
   /**
@@ -139,7 +180,7 @@ public class IngestService {
    * @return {@code true} if the branch exists
    */
   public boolean hasBranch(String branch) {
-    Resource namedModel = CortexNames.getResource(branch);
+    Resource namedModel = CortexNamespace.getResource(branch);
     return Txn.calculateRead(assertions, () -> assertions.containsNamedModel(namedModel));
   }
 
@@ -151,7 +192,7 @@ public class IngestService {
    * @throws IOException if the assertions cannot be serialized
    */
   public String getBranch(String branch) throws IOException {
-    Resource namedModel = CortexNames.getResource(branch);
+    Resource namedModel = CortexNamespace.getResource(branch);
     StringWriter writer = new StringWriter();
     try (writer) {
       Txn.executeRead(
@@ -165,8 +206,126 @@ public class IngestService {
   }
 
   /**
-   * Merges the assertions staged on the given branch into the default graph, recording a creation
-   * timestamp against each statement, and deletes the branch.
+   * Summarizes a branch pending review from its staged provenance activity.
+   *
+   * @param branch the branch name
+   * @return the branch summary
+   */
+  public BranchInfo getBranchInfo(String branch) {
+    Resource namedModel = CortexNamespace.getResource(branch);
+    return Txn.calculateRead(
+        assertions,
+        () -> {
+          Model model = assertions.getNamedModel(namedModel);
+          Statement started = model.getProperty(namedModel, PROV.startedAtTime);
+          long activitySize = Iter.count(model.listStatements(namedModel, null, (RDFNode) null));
+          return new BranchInfo(
+              branch,
+              started == null ? null : started.getLiteral().getLexicalForm(),
+              model.size() - activitySize);
+        });
+  }
+
+  /**
+   * Returns the assertions staged on the given branch grouped by subject, excluding the provenance
+   * activity of the ingestion.
+   *
+   * @param branch the branch name
+   * @return the staged subjects sorted by name, each with its statements sorted by predicate
+   */
+  public List<BranchSubject> getBranchSubjects(String branch) {
+    Resource namedModel = CortexNamespace.getResource(branch);
+    return Txn.calculateRead(
+        assertions,
+        () -> {
+          Map<Resource, List<BranchStatement>> subjects =
+              new TreeMap<>(Comparator.comparing(Resource::toString));
+          assertions
+              .getNamedModel(namedModel)
+              .listStatements()
+              .forEach(
+                  statement -> {
+                    Resource subject = statement.getSubject();
+                    if (namedModel.equals(subject)) return;
+                    subjects
+                        .computeIfAbsent(subject, key -> new ArrayList<>())
+                        .add(getBranchStatement(statement));
+                  });
+          return subjects.entrySet().stream()
+              .map(
+                  entry ->
+                      new BranchSubject(
+                          entry.getKey().isURIResource()
+                              ? entry.getKey().getLocalName()
+                              : entry.getKey().toString(),
+                          entry.getKey().toString(),
+                          entry.getValue().stream()
+                              .sorted(
+                                  Comparator.comparing(BranchStatement::predicate)
+                                      .thenComparing(BranchStatement::object))
+                              .toList()))
+              .toList();
+        });
+  }
+
+  BranchStatement getBranchStatement(Statement statement) {
+    RDFNode object = statement.getObject();
+    boolean literal = object.isLiteral();
+    return new BranchStatement(
+        ontModel.shortForm(statement.getPredicate().getURI()),
+        statement.getPredicate().getURI(),
+        literal ? object.asLiteral().getLexicalForm() : object.toString(),
+        literal,
+        literal ? object.asLiteral().getDatatypeURI() : null);
+  }
+
+  /**
+   * Applies reviewer changes — deletions and object edits — to the assertions staged on the given
+   * branch, as an RDF patch on the branch graph.
+   *
+   * <p>Changes addressing the provenance activity of the branch are ignored.
+   *
+   * @param branch the branch name
+   * @param changes the changes to apply
+   * @return {@code true} if the branch existed and the changes were applied
+   */
+  public boolean updateBranch(String branch, List<BranchChange> changes) {
+    if (!hasBranch(branch)) {
+      log.warn("Cannot update unknown branch {}", branch);
+      return false;
+    }
+    Resource namedModel = CortexNamespace.getResource(branch);
+    RDFChangesCollector collector = new RDFChangesCollector();
+    collector.txnBegin();
+    for (BranchChange change : changes) {
+      if (namedModel.getURI().equals(change.subject())) {
+        log.warn("Ignoring change to the provenance activity of branch {}", branch);
+        continue;
+      }
+      Node subject = NodeFactory.createURI(change.subject());
+      Node predicate = NodeFactory.createURI(change.predicate());
+      collector.delete(namedModel.asNode(), subject, predicate, getObject(change.object(), change));
+      if (change.newObject() != null) {
+        collector.add(
+            namedModel.asNode(), subject, predicate, getObject(change.newObject(), change));
+      }
+    }
+    collector.txnCommit();
+    RDFPatchOps.applyChange(assertions.asDatasetGraph(), collector.getRDFPatch());
+    log.info("Updated branch {} with {} changes", branch, changes.size());
+    return true;
+  }
+
+  Node getObject(String value, BranchChange change) {
+    if (!change.literal()) return NodeFactory.createURI(value);
+    if (change.datatype() == null) return NodeFactory.createLiteralString(value);
+    return NodeFactory.createLiteralDT(value, NodeFactory.getType(change.datatype()));
+  }
+
+  /**
+   * Merges the assertions staged on the given branch into the default graph, closing the {@link
+   * PROV#Activity provenance activity} of the ingestion and linking every merged statement to it,
+   * and deletes the branch.
    *
    * @param branch the branch name
    * @return {@code true} if the branch existed and was merged
@@ -177,12 +336,12 @@ public class IngestService {
       return false;
     }
     RDFChangesCollector collector = new RDFChangesCollector();
-    Resource namedModel = CortexNames.getResource(branch);
+    Resource namedModel = CortexNamespace.getResource(branch);
     collector.txnBegin();
     Txn.executeRead(
         assertions,
         () ->
-            getProvenanced(assertions.getNamedModel(namedModel)).getGraph().stream()
+            getProvenanced(assertions.getNamedModel(namedModel), namedModel).getGraph().stream()
                 .forEach(
                     triple -> {
                       collector.add(
@@ -199,16 +358,19 @@ public class IngestService {
     return true;
   }
 
-  Model getProvenanced(Model model) {
+  Model getProvenanced(Model model, Resource activity) {
     Model provModel = ModelFactory.createDefaultModel();
     Literal now = provModel.createTypedLiteral(Calendar.getInstance());
+    provModel.add(activity, PROV.endedAtTime, now);
     model
         .listStatements()
         .forEach(
             statement -> {
               provModel.add(statement);
-              Resource quoted = provModel.createReifier(statement);
-              provModel.add(quoted, DCTerms.created, now);
+              if (!activity.equals(statement.getSubject())) {
+                Resource quoted = provModel.createReifier(statement);
+                provModel.add(quoted, PROV.wasGeneratedBy, activity);
+              }
             });
     return provModel;
   }
@@ -226,7 +388,7 @@ public class IngestService {
     Txn.calculateWrite(
         assertions,
         () -> {
-          Resource namedModel = CortexNames.getResource(branch);
+          Resource namedModel = CortexNamespace.getResource(branch);
           assertions.removeNamedModel(namedModel);
           return true;
         });

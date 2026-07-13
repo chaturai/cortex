@@ -42,14 +42,17 @@ public interface Cortex {
    *
    * <p>The input must first pass the {@link #lint(String) lint check} against the ontology;
    * assertions failing it are rejected without being staged. Input that lints clean is then
-   * validated against the configured SHACL shapes. If it conforms, the statements are stored on a
-   * newly created branch awaiting {@link #approve(String) approval}; otherwise nothing is stored
-   * and the validation errors are reported in the result.
+   * validated against the configured SHACL shapes, together with the already approved assertions,
+   * so incoming statements may rely on approved ones to conform. If the union conforms, the
+   * statements not already approved are stored on a newly created branch awaiting {@link
+   * #approve(String) approval}; otherwise nothing is stored and the validation errors are reported
+   * in the result. Statements that are already approved are never staged again; if nothing novel
+   * remains, no branch is created.
    *
    * @param ttl RDF assertions in Turtle syntax, based on the classes and properties of {@link
    *     #getOntology() the ontology}
-   * @return the outcome, carrying either the name of the created branch or the lint or validation
-   *     errors
+   * @return the outcome, carrying either the name of the created branch — {@code null} if every
+   *     assertion was already approved — or the lint or validation errors
    * @throws IOException if the input cannot be read or the validation report cannot be rendered
    */
   IngestResult ingest(String ttl) throws IOException;
@@ -77,6 +80,35 @@ public interface Cortex {
    * @throws IOException if the assertions cannot be serialized
    */
   String getBranch(String branch) throws IOException;
+
+  /**
+   * Summarizes a branch pending review from the provenance activity recorded when it was staged.
+   *
+   * @param branch the branch name
+   * @return the branch summary
+   */
+  BranchInfo getBranchInfo(String branch);
+
+  /**
+   * Returns the assertions staged on the given branch grouped by subject, excluding the provenance
+   * activity of the ingestion.
+   *
+   * @param branch the branch name
+   * @return the staged subjects sorted by name, each with its statements sorted by predicate
+   */
+  List<BranchSubject> getBranchSubjects(String branch);
+
+  /**
+   * Applies reviewer changes — deletions and object edits — to the assertions staged on the given
+   * branch.
+   *
+   * <p>Changes addressing the provenance activity of the branch are ignored.
+   *
+   * @param branch the branch name
+   * @param changes the changes to apply
+   * @return {@code true} if the branch existed and the changes were applied
+   */
+  boolean updateBranch(String branch, List<BranchChange> changes);
 
   /**
    * Merges the assertions staged on the given branch into the knowledge graph.
@@ -148,6 +180,17 @@ public interface Cortex {
    * @return the matches with their relevance scores, formatted as text and ranked best first
    */
   String search(String text);
+
+  /**
+   * Searches the knowledge graph by free text and returns the matching subjects.
+   *
+   * <p>Each term of the input is matched approximately, so small typos and spelling variations
+   * still find their target.
+   *
+   * @param text the text to search for
+   * @return the matching subjects ranked best first, empty if nothing matches
+   */
+  List<SearchResult> searchSubjects(String text);
 
   /**
    * Returns a snapshot of the size and activity of the knowledge graph.
