@@ -20,6 +20,8 @@ dependencies {
   testImplementation(platform(libs.junit.bom))
   testImplementation("org.junit.jupiter:junit-jupiter")
   testImplementation("org.springframework.boot:spring-boot-starter-test")
-  testImplementation("org.springframework.ai:spring-ai-starter-mcp-client-webmvc")
+  testImplementation("org.springframework.boot:spring-boot-starter-webmvc")
+  testImplementation("org.springframework.boot:spring-boot-starter-thymeleaf")
+  testImplementation("org.springframework.ai:spring-ai-starter-mcp-client")
   testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
