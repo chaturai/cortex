@@ -88,6 +88,11 @@ public class JenaCortex implements Cortex {
   }
 
   @Override
+  public boolean renameBranchSubjects(String branch, List<BranchRename> renames) {
+    return ingestService.renameBranchSubjects(branch, renames);
+  }
+
+  @Override
   public void approve(String branch) {
     if (ingestService.approve(branch)) inferenceService.recomputeInference();
   }

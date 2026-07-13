@@ -111,6 +111,18 @@ public interface Cortex {
   boolean updateBranch(String branch, List<BranchChange> changes);
 
   /**
+   * Renames subjects staged on the given branch, rewriting every staged statement in which a
+   * renamed subject appears — as subject or object — to use its new IRI.
+   *
+   * <p>Renames addressing the provenance activity of the branch are ignored.
+   *
+   * @param branch the branch name
+   * @param renames the renames to apply
+   * @return {@code true} if the branch existed and the renames were applied
+   */
+  boolean renameBranchSubjects(String branch, List<BranchRename> renames);
+
+  /**
    * Merges the assertions staged on the given branch into the knowledge graph.
    *
    * <p>Each merged statement is recorded with creation provenance, the branch is deleted, and

@@ -248,15 +248,22 @@ main {
   margin: 1rem 0 0.25rem;
 }
 
-.statement-object[contenteditable] {
+.statement-object[contenteditable],
+.subject-heading[contenteditable] {
   outline: none;
   border-bottom: 1px dashed transparent;
   transition: border-color 250ms ease;
 }
 
 .statement-object[contenteditable]:hover,
-.statement-object[contenteditable]:focus {
+.statement-object[contenteditable]:focus,
+.subject-heading[contenteditable]:hover,
+.subject-heading[contenteditable]:focus {
   border-bottom-color: var(--base01);
+}
+
+.subject-heading.edited {
+  color: var(--yellow);
 }
 
 .statement-delete {
