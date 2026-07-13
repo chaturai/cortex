@@ -2,6 +2,7 @@ package ai.chatur.cortex;
 
 import ai.chatur.cortex.core.inference.InferenceService;
 import ai.chatur.cortex.core.ingest.IngestService;
+import ai.chatur.cortex.core.lint.LintService;
 import ai.chatur.cortex.core.ontology.OntologyService;
 import ai.chatur.cortex.core.query.QueryService;
 import ai.chatur.cortex.core.stats.StatsService;
@@ -12,14 +13,15 @@ import java.util.List;
  * {@link Cortex} implementation backed by <a href="https://jena.apache.org">Apache Jena</a>.
  *
  * <p>Composes the core services: {@link OntologyService} for the ontology and its class hierarchy,
- * {@link IngestService} for validated, branch-based ingestion with provenance, {@link
- * InferenceService} for rule-based inference, {@link QueryService} for SPARQL queries and full-text
- * search, and {@link StatsService} for statistics. Approving a branch automatically recomputes
- * inference.
+ * {@link LintService} for linting assertions against the ontology, {@link IngestService} for
+ * validated, branch-based ingestion with provenance, {@link InferenceService} for rule-based
+ * inference, {@link QueryService} for SPARQL queries and full-text search, and {@link StatsService}
+ * for statistics. Approving a branch automatically recomputes inference.
  */
 public class JenaCortex implements Cortex {
 
   private final OntologyService ontologyService;
+  private final LintService lintService;
   private final IngestService ingestService;
   private final InferenceService inferenceService;
   private final QueryService queryService;
@@ -27,11 +29,13 @@ public class JenaCortex implements Cortex {
 
   public JenaCortex(
       OntologyService ontologyService,
+      LintService lintService,
       IngestService ingestService,
       InferenceService inferenceService,
       QueryService queryService,
       StatsService statsService) {
     this.ontologyService = ontologyService;
+    this.lintService = lintService;
     this.ingestService = ingestService;
     this.inferenceService = inferenceService;
     this.queryService = queryService;
@@ -41,6 +45,11 @@ public class JenaCortex implements Cortex {
   @Override
   public String getOntology() throws IOException {
     return ontologyService.getOntology();
+  }
+
+  @Override
+  public LintResult lint(String ttl) throws IOException {
+    return lintService.lint(ttl);
   }
 
   @Override

@@ -77,6 +77,21 @@ public class IngestUnitTests {
   }
 
   @Test
+  void shouldNotStageAssertionsFailingLint() throws IOException {
+    String ttl =
+        """
+        @prefix o: <cortex://ontology/> .
+        @prefix : <cortex://assertions/> .
+
+        :LintTask o:unknownProperty :LintAgent .
+        """;
+    IngestResult ingestResult = cortex.ingest(ttl);
+    assert (!ingestResult.valid());
+    assert (ingestResult.branch() == null);
+    assert (ingestResult.errors().contains("cortex://ontology/unknownProperty"));
+  }
+
+  @Test
   void controllerShouldRenderBranchView() throws IOException {
     String ttl = validAssertion.getContentAsString(Charset.defaultCharset());
     IngestResult ingestResult = cortex.ingest(ttl);

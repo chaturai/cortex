@@ -20,7 +20,8 @@ public class IngestTools {
 
   @McpTool(
       description =
-          "Ensure that input assertions are in text/turtle format and based on cortex://ontology",
+          "Ensure that input assertions are in text/turtle format and based on cortex://ontology."
+              + " Always call the Lint tool first and ingest only the validated TTL it returns",
       annotations =
           @McpTool.McpAnnotations(title = "Ingest", destructiveHint = false, openWorldHint = false))
   IngestResult ingest(

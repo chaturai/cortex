@@ -12,7 +12,8 @@ Adding the starter auto-configures a complete knowledge graph memory for your Sp
 
 - **A `Cortex` bean** — the entry point to the knowledge graph, backed by Apache Jena. Runs fully in memory by default, or persists to disk (TDB2 store + Lucene index) with `cortex.persistent=true`.
 - **Ontology-grounded storage** — you supply the vocabulary (`ontology.ttl`), the SHACL shapes ingested data must conform to (`shapes.ttl`), and inference rules (`ontology.rules`) on the classpath; locations are configurable via `cortex.*` properties.
-- **Branch-based ingestion** — incoming assertions are SHACL-validated and staged on a branch. Nothing enters the graph until a human approves it; approved statements are recorded with a provenance timestamp.
+- **Ontology linting** — assertions are checked against the ontology: every class and property used must be defined there, with only `rdf:type`, `rdfs:label`, and `rdfs:comment` allowed beyond it. Linting returns the validated Turtle, ready to ingest, and ingestion fails fast on anything that does not lint clean.
+- **Branch-based ingestion** — incoming assertions are linted, SHACL-validated, and staged on a branch. Nothing enters the graph until a human approves it; approved statements are recorded with a provenance timestamp.
 - **Rule-based inference** — derived statements are recomputed on startup and after every approval, and included in all query results.
 - **Full-text search** — a Lucene index over `rdfs:label`.
 - **An MCP server** — tools and resources that let AI agents read and write the graph (see below).
@@ -53,7 +54,8 @@ The starter registers an MCP server (via Spring AI) through which agents interac
 
 | Tool | Parameters | Description |
 |---|---|---|
-| **Ingest** | `ttl` — RDF data in Turtle syntax | Validates the assertions against the SHACL shapes and stages them on a new branch for human review. Returns the branch name, or the validation errors if the data does not conform. Assertions must use the vocabulary of `cortex://ontology`. |
+| **Lint** | `ttl` — RDF data in Turtle syntax | Checks the assertions against `cortex://ontology`: classes and properties not defined in the ontology are rejected, and only `rdf:type`, `rdfs:label`, and `rdfs:comment` are allowed beyond it. Returns the validated TTL, or the violations to fix. **Must be called before Ingest**; only the validated TTL it returns should be ingested. Read-only and idempotent. |
+| **Ingest** | `ttl` — RDF data in Turtle syntax | Lints the assertions against the ontology (failing fast on lint violations), validates them against the SHACL shapes, and stages them on a new branch for human review. Returns the branch name, or the lint or validation errors if the data does not conform. Assertions must use the vocabulary of `cortex://ontology` and should be linted with **Lint** first. |
 | **Query** | `sparql` — a SPARQL `SELECT` query | Runs the query against the knowledge graph, including statements derived by inference. Returns the results as a text table. Read-only and idempotent. |
 | **Ask** | `sparql` — a SPARQL `ASK` query | Answers a yes/no question against the knowledge graph, including statements derived by inference. Returns `true` or `false`. Read-only and idempotent. |
 | **Describe** | `sparql` — a SPARQL `DESCRIBE` query | Fetches everything known about the described resources, including statements derived by inference. Returns the results in Turtle syntax. Read-only and idempotent. |

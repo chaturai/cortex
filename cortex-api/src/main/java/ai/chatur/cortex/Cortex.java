@@ -23,15 +23,33 @@ public interface Cortex {
   String getOntology() throws IOException;
 
   /**
+   * Lints the given assertions against {@link #getOntology() the ontology}.
+   *
+   * <p>Every property used must be declared in the ontology, and every {@code rdf:type} object must
+   * be a class declared in the ontology. The only terms permitted beyond the ontology are {@code
+   * rdf:type}, {@code rdfs:label}, and {@code rdfs:comment}. Call this before {@link
+   * #ingest(String)} and ingest only the validated Turtle it returns.
+   *
+   * @param ttl RDF assertions in Turtle syntax
+   * @return the outcome, carrying either the validated assertions in Turtle syntax or the lint
+   *     violations
+   * @throws IOException if the validated assertions cannot be serialized
+   */
+  LintResult lint(String ttl) throws IOException;
+
+  /**
    * Validates the given assertions and stages them on a new branch.
    *
-   * <p>The input is validated against the configured SHACL shapes. If it conforms, the statements
-   * are stored on a newly created branch awaiting {@link #approve(String) approval}; otherwise
-   * nothing is stored and the validation errors are reported in the result.
+   * <p>The input must first pass the {@link #lint(String) lint check} against the ontology;
+   * assertions failing it are rejected without being staged. Input that lints clean is then
+   * validated against the configured SHACL shapes. If it conforms, the statements are stored on a
+   * newly created branch awaiting {@link #approve(String) approval}; otherwise nothing is stored
+   * and the validation errors are reported in the result.
    *
    * @param ttl RDF assertions in Turtle syntax, based on the classes and properties of {@link
    *     #getOntology() the ontology}
-   * @return the outcome, carrying either the name of the created branch or the validation errors
+   * @return the outcome, carrying either the name of the created branch or the lint or validation
+   *     errors
    * @throws IOException if the input cannot be read or the validation report cannot be rendered
    */
   IngestResult ingest(String ttl) throws IOException;
