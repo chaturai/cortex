@@ -25,6 +25,15 @@
   <nav th:fragment="navbar">
     <div class="navbar-container">
       <a class="navbar-brand" href="/">CORTEX</a>
+      <form class="navbar-search" action="/search" method="get" role="search">
+        <input
+          class="navbar-search-input"
+          type="search"
+          name="q"
+          placeholder="Search…"
+          autocomplete="off"
+          th:value="${param.q}" />
+      </form>
       <ul class="navbar-menu">
         <li><a href="/assertions">ASSERTIONS</a></li>
         <li><a href="/ontology">ONTOLOGY</a></li>

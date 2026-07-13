@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+  <head th:replace="~{fragments :: head('Branch')}"></head>
+  <body>
+    <nav th:replace="~{fragments :: navbar}"></nav>
+    <main>
+      <div class="describe-container">
+        <div class="branch-header">
+          <h1 th:text="${branch}"></h1>
+          <div class="branch-actions">
+            <button type="button" id="save-changes" class="btn btn-save" hidden>Save changes</button>
+            <button type="button" id="reset-changes" class="btn btn-reset" hidden>Reset</button>
+            <form method="post" th:action="@{/branches/{branch}/approve(branch=${branch})}" class="action-form">
+              <button type="submit" class="btn btn-approve">Approve</button>
+            </form>
+            <form method="post" th:action="@{/branches/{branch}/reject(branch=${branch})}" class="action-form">
+              <button type="submit" class="btn btn-delete">Delete</button>
+            </form>
+          </div>
+        </div>
+        <div class="branch-subject" th:each="subject : ${subjects}">
+          <h2 class="subject-heading" th:text="${subject.name}"></h2>
+          <ul class="statement-list">
+            <li
+              class="statement-item statement-asserted"
+              th:each="statement : ${subject.statements}"
+              th:data-subject="${subject.uri}"
+              th:data-predicate="${statement.predicateUri}"
+              th:data-object="${statement.object}"
+              th:data-literal="${statement.literal}"
+              th:data-datatype="${statement.datatype}">
+              <code class="statement-predicate" th:text="${statement.predicate}"></code>
+              <code class="statement-object" contenteditable="plaintext-only" spellcheck="false" th:text="${statement.object}"></code>
+              <button type="button" class="statement-delete" title="Delete statement">&times;</button>
+            </li>
+          </ul>
+        </div>
+        <p class="statements-empty" th:if="${subjects.isEmpty()}">
+          No statements staged on this branch.
+        </p>
+      </div>
+    </main>
+    <script th:src="@{/js/branch.js}"></script>
+  </body>
+</html>

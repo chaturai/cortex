@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+  <head th:replace="~{fragments :: head('Search')}"></head>
+  <body>
+    <nav th:replace="~{fragments :: navbar}"></nav>
+    <main>
+      <div class="instances-container">
+        <h1 th:text="|Search results for “${q}”|"></h1>
+        <ul class="instance-list" th:if="${!results.isEmpty()}">
+          <li class="instance-item search-result" th:each="result : ${results}">
+            <a
+              class="instance-link"
+              th:href="@{'/assertions/' + ${result.subject}}"
+              th:text="${result.subject}"></a>
+            <span class="search-match" th:if="${result.match != null}" th:text="${result.match}"></span>
+          </li>
+        </ul>
+        <p class="instances-empty" th:if="${results.isEmpty()}">No matches.</p>
+      </div>
+    </main>
+  </body>
+</html>

@@ -10,10 +10,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.Resource;
 
 /**
- * Configures the ontology: an immutable {@link OntModel} loaded from the configured Turtle
- * resource, the {@link OntologyService} exposing it, the web UI controller, and the MCP resource
+ * Configures the ontology: an immutable {@link OntModel} merged from the configured Turtle
+ * resources, the {@link OntologyService} exposing it, the web UI controller, and the MCP resource
  * that serves the ontology to AI agents.
  */
 @Configuration
@@ -24,9 +25,11 @@ public class OntologyConfiguration {
   @Bean
   OntModel ontModel(CortexProperties properties) throws IOException {
     OntModel ontModel = OntModelFactory.createModel();
-    ontModel.read(properties.ontology().getInputStream(), null, "TTL");
+    for (Resource ontology : properties.ontology()) {
+      ontModel.read(ontology.getInputStream(), null, "TTL");
+      log.info("Loaded ontology from {}", ontology);
+    }
     ontModel.lock();
-    log.info("Loaded ontology from {}", properties.ontology());
     return ontModel;
   }
 

@@ -4,6 +4,7 @@ import ai.chatur.cortex.Cortex;
 import ai.chatur.cortex.core.inference.InferenceService;
 import ai.chatur.cortex.spring.CortexProperties;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import org.apache.jena.ontapi.model.OntModel;
 import org.apache.jena.query.Dataset;
@@ -15,10 +16,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.Resource;
 
 /**
  * Configures rule-based inference: a {@link GenericRuleReasoner} loaded from the configured rules
- * file and bound to the ontology, the {@link InferenceService} that applies it, and an initializer
+ * files and bound to the ontology, the {@link InferenceService} that applies it, and an initializer
  * that computes inference on startup.
  */
 @Configuration
@@ -28,9 +30,12 @@ public class InferenceConfiguration {
 
   @Bean
   GenericRuleReasoner genericRuleReasoner(CortexProperties properties) throws IOException {
-    List<Rule> rules =
-        GenericRuleReasoner.loadRules(properties.rules().getFile().getAbsolutePath());
-    log.info("Loaded {} inference rules from {}", rules.size(), properties.rules());
+    List<Rule> rules = new ArrayList<>();
+    for (Resource resource : properties.rules()) {
+      List<Rule> loaded = GenericRuleReasoner.loadRules(resource.getFile().getAbsolutePath());
+      log.info("Loaded {} inference rules from {}", loaded.size(), resource);
+      rules.addAll(loaded);
+    }
     GenericRuleReasoner genericRuleReasoner = new GenericRuleReasoner(rules);
     genericRuleReasoner.setOWLTranslation(true);
     genericRuleReasoner.setTransitiveClosureCaching(true);

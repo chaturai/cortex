@@ -7,14 +7,11 @@
       <div class="branches-container">
         <div class="branches-list">
           <div class="branch-item" th:each="branch : ${branches}">
-            <a class="branch-link" th:href="@{/branches/{branch}(branch=${branch})}" th:text="${branch}"></a>
-            <div class="branch-actions">
-              <form method="post" th:action="@{/branches/{branch}/approve(branch=${branch})}" class="action-form">
-                <button type="submit" class="btn btn-approve">Approve</button>
-              </form>
-              <form method="post" th:action="@{/branches/{branch}/reject(branch=${branch})}" class="action-form">
-                <button type="submit" class="btn btn-delete">Reject</button>
-              </form>
+            <a class="branch-link" th:href="@{/branches/{branch}(branch=${branch.name})}" th:text="${branch.name}"></a>
+            <div class="branch-badges">
+              <span class="badge badge-activity">prov:Activity</span>
+              <span class="badge badge-started" th:if="${branch.started != null}" th:text="${branch.started}"></span>
+              <span class="badge badge-size" th:text="${branch.size} + ' triples'"></span>
             </div>
           </div>
         </div>
