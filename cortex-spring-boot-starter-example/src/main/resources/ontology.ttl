@@ -1,19 +1,91 @@
-@prefix dcterms: <http://purl.org/dc/terms/>.
+@prefix owl:  <http://www.w3.org/2002/07/owl#> .
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:  <http://www.w3.org/2001/XMLSchema#> .
 
 @prefix : <cortex://ontology/> .
 @prefix cortex: <cortex://> .
 
-:Rule a owl:Class .
+:Rule a owl:Class ;
+    rdfs:label "Rule" ;
+    rdfs:comment "A rule that can be activated or blocked by conditions and performs actions." .
 
-:Condition a owl:Class .
+:Condition a owl:Class ;
+    rdfs:label "Condition" ;
+    rdfs:comment "A condition evaluated to determine rule activation or blocking." .
 
 :PositiveCondition a owl:Class ;
-    rdfs:subClassOf :Condition .
+    rdfs:subClassOf :Condition ;
+    rdfs:label "Positive Condition" ;
+    rdfs:comment "A condition whose satisfaction activates a rule. Inferred-only: derived by a rule, never asserted directly." .
+
+:NegativeCondition a owl:Class ;
+    rdfs:subClassOf :Condition ;
+    rdfs:label "Negative Condition" ;
+    rdfs:comment "A condition whose satisfaction blocks a rule. Inferred-only: derived by a rule, never asserted directly." .
+
+:Action a owl:Class ;
+    rdfs:label "Action" ;
+    rdfs:comment "An action that a rule performs when activated." .
+
+:Expression a owl:Class ;
+    rdfs:label "Expression" ;
+    rdfs:comment "An expression within a condition that evaluates to true or false." .
+
+:Coordinate a owl:Class ;
+    rdfs:label "Coordinate" ;
+    rdfs:comment "A coordinate with a dimension and a value used within an expression." .
+
+:Dimension a owl:Class ;
+    rdfs:label "Dimension" ;
+    rdfs:comment "A dimension that identifies the axis or field of a coordinate." .
 
 :hasCondition a owl:ObjectProperty ;
     rdfs:domain :Rule ;
-    rdfs:range :Condition .
+    rdfs:range :Condition ;
+    rdfs:label "Has Condition" ;
+    rdfs:comment "A rule has a condition." .
 
+:activatedBy a owl:ObjectProperty ;
+    rdfs:subPropertyOf :hasCondition ;
+    rdfs:domain :Rule ;
+    rdfs:range :Condition ;
+    rdfs:label "Activated By" ;
+    rdfs:comment "A rule is activated by a positive condition. Derives PositiveCondition type." .
 
+:blockedBy a owl:ObjectProperty ;
+    rdfs:subPropertyOf :hasCondition ;
+    rdfs:domain :Rule ;
+    rdfs:range :Condition ;
+    rdfs:label "Blocked By" ;
+    rdfs:comment "A rule is blocked by a negative condition. Derives NegativeCondition type." .
+
+:hasAction a owl:ObjectProperty ;
+    rdfs:domain :Rule ;
+    rdfs:range :Action ;
+    rdfs:label "Has Action" ;
+    rdfs:comment "A rule has an action to perform." .
+
+:hasExpression a owl:ObjectProperty ;
+    rdfs:domain :Condition ;
+    rdfs:range :Expression ;
+    rdfs:label "Has Expression" ;
+    rdfs:comment "A condition has one or more expressions." .
+
+:hasCoordinate a owl:ObjectProperty ;
+    rdfs:domain :Expression ;
+    rdfs:range :Coordinate ;
+    rdfs:label "Has Coordinate" ;
+    rdfs:comment "An expression has one or more coordinates." .
+
+:hasDimension a owl:ObjectProperty ;
+    rdfs:domain :Coordinate ;
+    rdfs:range :Dimension ;
+    rdfs:label "Has Dimension" ;
+    rdfs:comment "A coordinate has a dimension." .
+
+:hasValue a owl:DatatypeProperty ;
+    rdfs:domain :Coordinate ;
+    rdfs:range rdfs:Literal ;
+    rdfs:label "Has Value" ;
+    rdfs:comment "A coordinate has a literal value (string, number, date, etc.)." .

@@ -67,6 +67,21 @@ The starter registers an MCP server (via Spring AI) through which agents interac
 |---|---|---|
 | **Ontology** | `cortex://ontology` | The ontology the knowledge graph is built on, served in Turtle format (`text/turtle`). Agents should read it to ground the assertions and queries they produce. |
 
+## Claude Code plugin
+
+The repository also ships **cortex-schema** ([`cortex-schema-plugin/`](cortex-schema-plugin/README.md)), a [Claude Code plugin](https://code.claude.com/docs/en/plugins) that authors the three schema files a Cortex application needs — `ontology.ttl`, `shapes.ttl`, and `ontology.rules` — from a plain-English description of your classes, relations, and rules.
+
+Its `/generate-cortex-resources` skill gathers requirements interactively, then generates a mutually-consistent set of files: an OWL 2 DL ontology, closed-world SHACL shapes that reject anything the ontology doesn't recognize (including direct assertion of inferred-only classes), and Jena reasoner rules for controlled inference — all in the fixed `cortex://` namespaces, cross-checked for consistency before being written to your application's `src/main/resources/`.
+
+To use it, add the plugin directory as a marketplace in Claude Code and install the plugin:
+
+```
+/plugin marketplace add ./cortex-schema-plugin
+/plugin install cortex-schema@cortex-schema
+```
+
+Then invoke `/generate-cortex-resources` and describe your ontology. See the [plugin README](cortex-schema-plugin/README.md) for the full workflow and an example.
+
 ## Web UI
 
 The starter also serves a small UI for exploring the graph and reviewing what agents have staged:

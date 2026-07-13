@@ -5,8 +5,12 @@
 
 [subClass: (?x rdf:type ?c1) (?c1 rdfs:subClassOf ?c2) -> (?x rdf:type ?c2)]
 
+[subProperty: (?x ?p1 ?y) (?p1 rdfs:subPropertyOf ?p2) -> (?x ?p2 ?y)]
+
 [domain: (?p rdfs:domain ?c) (?x ?p ?y) -> (?x rdf:type ?c)]
 
 [range: (?p rdfs:range ?c) (?x ?p ?y) -> (?y rdf:type ?c)]
 
-[positiveCondition: (?rule rdf:type :Rule) (?rule :hasCondition ?condition) -> (?condition rdf:type :PositiveCondition)]
+[positiveCondition: (?rule rdf:type :Rule) (?rule :activatedBy ?condition) -> (?condition rdf:type :PositiveCondition)]
+
+[negativeCondition: (?rule rdf:type :Rule) (?rule :blockedBy ?condition) -> (?condition rdf:type :NegativeCondition)]
