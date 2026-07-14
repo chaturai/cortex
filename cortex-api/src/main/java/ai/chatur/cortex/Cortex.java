@@ -116,9 +116,9 @@ public interface Cortex {
   /**
    * Renames subjects staged on the given branch.
    *
-   * <p>Every staged statement referencing a renamed IRI as object is rewritten to reference the
-   * new IRI; the statements describing the renamed subject — those carrying the IRI as subject —
-   * are removed rather than rewritten.
+   * <p>Every staged statement referencing a renamed IRI as object is rewritten to reference the new
+   * IRI; the statements describing the renamed subject — those carrying the IRI as subject — are
+   * removed rather than rewritten.
    *
    * <p>Renames addressing the provenance activity of the branch are ignored.
    *

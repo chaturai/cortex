@@ -365,9 +365,9 @@ public class IngestService {
   /**
    * Renames subjects staged on the given branch, as an RDF patch on the branch graph.
    *
-   * <p>Every staged statement referencing a renamed IRI as object is rewritten to reference the
-   * new IRI; the statements describing the renamed subject — those carrying the IRI as subject —
-   * are removed rather than rewritten.
+   * <p>Every staged statement referencing a renamed IRI as object is rewritten to reference the new
+   * IRI; the statements describing the renamed subject — those carrying the IRI as subject — are
+   * removed rather than rewritten.
    *
    * <p>Renames addressing the provenance activity of the branch are ignored.
    *
@@ -538,8 +538,8 @@ public class IngestService {
   }
 
   /**
-   * Restores the assertions dataset from an {@link #exportAssertions() exported backup},
-   * replacing the approved assertions and every staged branch.
+   * Restores the assertions dataset from an {@link #exportAssertions() exported backup}, replacing
+   * the approved assertions and every staged branch.
    *
    * <p>The replacement happens in a single transaction: if the backup cannot be parsed, the
    * transaction is aborted and the dataset is left untouched.

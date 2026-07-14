@@ -13,9 +13,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Derives new statements from the approved assertions by reasoning in two stages: first an
- * OWL-Full reasoner bound to the ontology computes the OWL closure of the assertions, then the
- * configured rule reasoner is applied to that closure, without rebinding the ontology as schema.
+ * Derives new statements from the approved assertions by reasoning in two stages: first an OWL-Full
+ * reasoner bound to the ontology computes the OWL closure of the assertions, then the configured
+ * rule reasoner is applied to that closure, without rebinding the ontology as schema.
  *
  * <p>The inference results are materialized into a separate dataset that serves as the read model
  * for queries and search, leaving the dataset of approved assertions untouched. The closure is
@@ -60,8 +60,7 @@ public class InferenceService {
     Txn.executeRead(
         assertions,
         () -> {
-          Model owlClosure =
-              ModelFactory.createInfModel(owlReasoner, assertions.getDefaultModel());
+          Model owlClosure = ModelFactory.createInfModel(owlReasoner, assertions.getDefaultModel());
           inferred.add(ModelFactory.createInfModel(ruleReasoner, owlClosure));
         });
     Model stale = ModelFactory.createDefaultModel();

@@ -20,8 +20,8 @@ import org.springframework.core.io.Resource;
 
 /**
  * Configures rule-based inference: a {@link GenericRuleReasoner} loaded from the configured rules
- * files, the {@link InferenceService} that applies the OWL-Full closure of the ontology followed
- * by those rules, and an initializer that computes inference on startup.
+ * files, the {@link InferenceService} that applies the OWL-Full closure of the ontology followed by
+ * those rules, and an initializer that computes inference on startup.
  */
 @Configuration
 public class InferenceConfiguration {
