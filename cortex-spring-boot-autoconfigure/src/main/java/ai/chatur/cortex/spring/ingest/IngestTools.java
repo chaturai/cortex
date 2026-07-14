@@ -24,7 +24,10 @@ public class IngestTools {
               + " Always call the Lint tool first and ingest only the validated TTL it returns."
               + " Before generating new data, use the Search or Query tools to find out whether"
               + " the instances involved already exist in the knowledge graph, and reuse their"
-              + " IRIs, so that the same instance is never ingested under multiple names",
+              + " IRIs, so that the same instance is never ingested under multiple names."
+              + " When the result contains a branch name, open the review page at"
+              + " /branches/<branch> on this MCP server's host in a UI (e.g. the browser) so the"
+              + " staged assertions can be reviewed and approved",
       annotations =
           @McpTool.McpAnnotations(title = "Ingest", destructiveHint = false, openWorldHint = false))
   IngestResult ingest(

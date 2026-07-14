@@ -3,7 +3,12 @@ package ai.chatur.cortex.spring.ingest;
 import ai.chatur.cortex.BranchChange;
 import ai.chatur.cortex.BranchRename;
 import ai.chatur.cortex.Cortex;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.List;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -13,6 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.view.RedirectView;
 
 /**
@@ -70,6 +76,22 @@ public class IngestController {
     return cortex.renameBranchSubjects(branch, renames)
         ? ResponseEntity.noContent().build()
         : ResponseEntity.notFound().build();
+  }
+
+  @GetMapping("/export")
+  public ResponseEntity<String> exportAssertions() throws IOException {
+    String filename = "cortex-assertions-" + LocalDate.now() + ".trig";
+    return ResponseEntity.ok()
+        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+        .contentType(MediaType.parseMediaType("application/trig"))
+        .body(cortex.exportAssertions());
+  }
+
+  @PostMapping("/import")
+  public RedirectView importAssertions(@RequestParam("file") MultipartFile file)
+      throws IOException {
+    cortex.importAssertions(new String(file.getBytes(), StandardCharsets.UTF_8));
+    return new RedirectView("/assertions");
   }
 
   @GetMapping("/assertions/{*id}")

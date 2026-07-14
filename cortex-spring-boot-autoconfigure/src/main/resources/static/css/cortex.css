@@ -92,6 +92,18 @@ nav {
   color: var(--blue);
 }
 
+.navbar-import label {
+  color: var(--base0);
+  font-weight: 700;
+  transition: color 250ms ease;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.navbar-import label:hover {
+  color: var(--blue);
+}
+
 .navbar-search {
   flex: 1;
   display: flex;

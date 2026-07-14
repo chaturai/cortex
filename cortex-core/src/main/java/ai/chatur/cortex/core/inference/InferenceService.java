@@ -6,19 +6,23 @@ import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.rdfpatch.RDFPatchOps;
 import org.apache.jena.rdfpatch.changes.RDFChangesCollector;
 import org.apache.jena.reasoner.Reasoner;
+import org.apache.jena.reasoner.ReasonerRegistry;
 import org.apache.jena.sparql.core.Quad;
 import org.apache.jena.system.Txn;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Derives new statements from the approved assertions by applying a {@link Reasoner}.
+ * Derives new statements from the approved assertions by reasoning in two stages: first an OWL-Full
+ * reasoner bound to the ontology computes the OWL closure of the assertions, then the configured
+ * rule reasoner is applied to that closure, without rebinding the ontology as schema.
  *
  * <p>The inference results are materialized into a separate dataset that serves as the read model
  * for queries and search, leaving the dataset of approved assertions untouched. The closure is
- * always computed from the assertions alone and only the difference to the current inference graph
- * is applied, as an RDF patch, so recomputation is idempotent and the full-text index wrapped
- * around the inference dataset only ever indexes statements that are genuinely new.
+ * always recomputed from the assertions and the ontology alone and only the difference to the
+ * current inference graph is applied, as an RDF patch, so recomputation is idempotent and the
+ * full-text index wrapped around the inference dataset only ever indexes statements that are
+ * genuinely new.
  */
 public class InferenceService {
 
@@ -26,19 +30,23 @@ public class InferenceService {
 
   private final Dataset assertions;
   private final Dataset inferences;
-  private final Reasoner reasoner;
+  private final Reasoner owlReasoner;
+  private final Reasoner ruleReasoner;
 
   /**
    * Creates the service.
    *
    * @param assertions the dataset holding the approved assertions
    * @param inferences the dataset the inference results are materialized into
-   * @param reasoner the reasoner used to derive new statements
+   * @param ruleReasoner the reasoner applying the configured inference rules
+   * @param ontModel the ontology the OWL-Full reasoner is bound to
    */
-  public InferenceService(Dataset assertions, Dataset inferences, Reasoner reasoner) {
+  public InferenceService(
+      Dataset assertions, Dataset inferences, Reasoner ruleReasoner, Model ontModel) {
     this.assertions = assertions;
     this.inferences = inferences;
-    this.reasoner = reasoner;
+    this.owlReasoner = ReasonerRegistry.getOWLReasoner().bindSchema(ontModel);
+    this.ruleReasoner = ruleReasoner;
   }
 
   /**
@@ -51,7 +59,10 @@ public class InferenceService {
     Model inferred = ModelFactory.createDefaultModel();
     Txn.executeRead(
         assertions,
-        () -> inferred.add(ModelFactory.createInfModel(reasoner, assertions.getDefaultModel())));
+        () -> {
+          Model owlClosure = ModelFactory.createInfModel(owlReasoner, assertions.getDefaultModel());
+          inferred.add(ModelFactory.createInfModel(ruleReasoner, owlClosure));
+        });
     Model stale = ModelFactory.createDefaultModel();
     Model novel = ModelFactory.createDefaultModel();
     Txn.executeRead(

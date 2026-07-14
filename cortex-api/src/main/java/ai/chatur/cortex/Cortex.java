@@ -102,6 +102,9 @@ public interface Cortex {
    * Applies reviewer changes — deletions and object edits — to the assertions staged on the given
    * branch.
    *
+   * <p>When the deletions remove every statement a subject carried, its IRI is gone from the
+   * branch, so every staged statement referencing that IRI as object is deleted as well.
+   *
    * <p>Changes addressing the provenance activity of the branch are ignored.
    *
    * @param branch the branch name
@@ -111,8 +114,11 @@ public interface Cortex {
   boolean updateBranch(String branch, List<BranchChange> changes);
 
   /**
-   * Renames subjects staged on the given branch, rewriting every staged statement in which a
-   * renamed subject appears — as subject or object — to use its new IRI.
+   * Renames subjects staged on the given branch.
+   *
+   * <p>Every staged statement referencing a renamed IRI as object is rewritten to reference the new
+   * IRI; the statements describing the renamed subject — those carrying the IRI as subject — are
+   * removed rather than rewritten.
    *
    * <p>Renames addressing the provenance activity of the branch are ignored.
    *
@@ -148,6 +154,25 @@ public interface Cortex {
    * @throws IOException if the assertions cannot be serialized
    */
   String getAssertions() throws IOException;
+
+  /**
+   * Exports the entire assertions dataset — the approved assertions and every staged branch — for
+   * backup.
+   *
+   * @return the dataset serialized in TriG syntax
+   * @throws IOException if the dataset cannot be serialized
+   */
+  String exportAssertions() throws IOException;
+
+  /**
+   * Restores the assertions dataset from an {@link #exportAssertions() exported backup}, replacing
+   * the approved assertions and every staged branch, and recomputes inference.
+   *
+   * <p>If the backup cannot be parsed, the dataset is left untouched.
+   *
+   * @param trig the backup, a dataset serialized in TriG syntax
+   */
+  void importAssertions(String trig);
 
   /**
    * Returns the class hierarchy of the ontology.

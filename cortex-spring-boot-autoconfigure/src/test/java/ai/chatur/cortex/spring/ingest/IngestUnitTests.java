@@ -195,29 +195,88 @@ public class IngestUnitTests {
     IngestResult ingestResult = cortex.ingest(freshAssertion());
     String branch = ingestResult.branch();
 
-    BranchSubject subject = cortex.getBranchSubjects(branch).getFirst();
-    String agent = subject.statements().getFirst().object();
+    BranchSubject task = cortex.getBranchSubjects(branch).getFirst();
+    String agent = task.statements().getFirst().object();
 
+    // Renaming the agent rewrites the statement referencing it as object
     boolean renamed =
         cortex.renameBranchSubjects(
-            branch,
-            List.of(
-                new BranchRename(subject.uri(), "cortex://assertions/RenamedTask"),
-                new BranchRename(agent, "cortex://assertions/RenamedAgent")));
+            branch, List.of(new BranchRename(agent, "cortex://assertions/RenamedAgent")));
     assert (renamed);
-
     List<BranchSubject> subjects = cortex.getBranchSubjects(branch);
-    assert (subjects.size() == 2);
-    assert (subjects.getFirst().uri().equals("cortex://assertions/RenamedTask"));
-    assert (subjects.getFirst().name().equals("RenamedTask"));
-    // assert (subjects
-    //     .getFirst()
-    //     .statements()
-    //     .getFirst()
-    //     .object()
-    //     .equals("cortex://assertions/RenamedAgent"));
+    assert (subjects.size() == 1);
+    assert (subjects.getFirst().uri().equals(task.uri()));
+    assert (subjects
+        .getFirst()
+        .statements()
+        .getFirst()
+        .object()
+        .equals("cortex://assertions/RenamedAgent"));
+
+    // Renaming the task removes the statements describing it
+    renamed =
+        cortex.renameBranchSubjects(
+            branch, List.of(new BranchRename(task.uri(), "cortex://assertions/RenamedTask")));
+    assert (renamed);
+    assert (cortex.getBranchSubjects(branch).isEmpty());
 
     assert (!cortex.renameBranchSubjects("unknown-branch", List.of()));
+  }
+
+  @Test
+  void shouldRemoveReferencesToRemovedSubjects() throws IOException {
+    String uuid = UUID.randomUUID().toString();
+    String ttl =
+        """
+        @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+        @prefix o: <cortex://ontology/> .
+        @prefix : <cortex://assertions/> .
+
+        :Task-%1$s o:assignedTo :Agent-%1$s .
+        :Agent-%1$s rdfs:label "agent %1$s" .
+        """
+            .formatted(uuid);
+    IngestResult ingestResult = cortex.ingest(ttl);
+    String branch = ingestResult.branch();
+
+    BranchSubject agent =
+        cortex.getBranchSubjects(branch).stream()
+            .filter(subject -> subject.name().startsWith("Agent"))
+            .findFirst()
+            .orElseThrow();
+    BranchStatement label = agent.statements().getFirst();
+    boolean updated =
+        cortex.updateBranch(
+            branch,
+            List.of(
+                new BranchChange(
+                    agent.uri(),
+                    label.predicateUri(),
+                    label.object(),
+                    label.literal(),
+                    label.datatype(),
+                    null)));
+    assert (updated);
+
+    // Removing the agent's last statement also removes the statement referencing it as object
+    assert (cortex.getBranchSubjects(branch).isEmpty());
+  }
+
+  @Test
+  void shouldRestoreAssertionsFromExport() throws IOException {
+    String approved = freshAssertion();
+    approve(approved);
+    IngestResult staged = cortex.ingest(freshAssertion());
+
+    String backup = cortex.exportAssertions();
+    assert (backup.contains("assignedTo"));
+
+    cortex.reject(staged.branch());
+    cortex.importAssertions(backup);
+
+    // Both the approved assertions and the staged branch are restored
+    assert (cortex.getAssertions().contains("assignedTo"));
+    assert (cortex.hasBranch(staged.branch()));
   }
 
   @Test

@@ -38,6 +38,19 @@
         <li><a href="/assertions">ASSERTIONS</a></li>
         <li><a href="/ontology">ONTOLOGY</a></li>
         <li><a href="/branches">BRANCHES</a></li>
+        <li><a href="/export">EXPORT</a></li>
+        <li>
+          <form class="navbar-import" action="/import" method="post" enctype="multipart/form-data">
+            <label for="import-file">IMPORT</label>
+            <input
+              id="import-file"
+              type="file"
+              name="file"
+              accept=".trig"
+              hidden
+              onchange="if (confirm('Replace all assertions with this backup?')) this.form.submit(); else this.value = '';" />
+          </form>
+        </li>
       </ul>
     </div>
   </nav>
