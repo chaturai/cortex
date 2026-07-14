@@ -56,6 +56,17 @@ public class SearchUnitTests {
   }
 
   @Test
+  void shouldNotDuplicateSearchResultsWhenInferenceIsRecomputed() throws IOException {
+    approve(TTL);
+    cortex.recomputeInference();
+    cortex.recomputeInference();
+
+    List<SearchResult> results = cortex.searchSubjects("quarterly");
+    assert (results.stream().filter(result -> result.subject().contains("SearchTask")).count()
+        == 1);
+  }
+
+  @Test
   void shouldSearchSubjects() throws IOException {
     approve(TTL);
 

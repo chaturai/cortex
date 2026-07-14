@@ -275,6 +275,33 @@ public class IngestUnitTests {
   }
 
   @Test
+  void shouldNotDuplicateTriplesStagedOnConcurrentBranches() throws IOException {
+    String uuid = UUID.randomUUID().toString();
+    String ttl =
+        """
+        @prefix o: <cortex://ontology/> .
+        @prefix : <cortex://assertions/> .
+
+        :Task-%1$s o:assignedTo :Agent-%1$s .
+        """
+            .formatted(uuid);
+    IngestResult first = cortex.ingest(ttl);
+    IngestResult second = cortex.ingest(ttl);
+    assert (cortex.hasBranch(first.branch()));
+    assert (cortex.hasBranch(second.branch()));
+
+    cortex.approve(first.branch());
+    cortex.approve(second.branch());
+
+    List<ProvenancedStatement> statements = cortex.describe("assertions/Task-" + uuid);
+    assert (statements.size() == statements.stream().distinct().count());
+    assert (statements.stream()
+            .filter(statement -> statement.predicate().contains("assignedTo"))
+            .count()
+        == 1);
+  }
+
+  @Test
   void shouldNotStageApprovedTriplesAgain() throws IOException {
     String ttl = freshAssertion();
     approve(ttl);

@@ -381,6 +381,9 @@ public class IngestService {
    * PROV#Activity provenance activity} of the ingestion and linking every merged statement to it,
    * and deletes the branch.
    *
+   * <p>Staged triples that were approved through another branch in the meantime are skipped, so a
+   * statement is never merged or reified twice.
+   *
    * @param branch the branch name
    * @return {@code true} if the branch existed and was merged
    */
@@ -395,7 +398,11 @@ public class IngestService {
     Txn.executeRead(
         assertions,
         () ->
-            getProvenanced(assertions.getNamedModel(namedModel), namedModel).getGraph().stream()
+            getProvenanced(
+                    assertions.getNamedModel(namedModel).difference(assertions.getDefaultModel()),
+                    namedModel)
+                .getGraph()
+                .stream()
                 .forEach(
                     triple -> {
                       collector.add(
