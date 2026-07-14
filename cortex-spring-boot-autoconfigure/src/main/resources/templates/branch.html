@@ -19,13 +19,16 @@
           </div>
         </div>
         <div class="branch-subject" th:each="subject : ${subjects}">
-          <h2
-            class="subject-heading"
-            contenteditable="plaintext-only"
-            spellcheck="false"
-            th:text="${subject.name}"
-            th:data-uri="${subject.uri}"
-            th:data-name="${subject.name}"></h2>
+          <div class="subject-header">
+            <h2
+              class="subject-heading"
+              contenteditable="plaintext-only"
+              spellcheck="false"
+              th:text="${subject.name}"
+              th:data-uri="${subject.uri}"
+              th:data-name="${subject.name}"></h2>
+            <button type="button" class="subject-delete" title="Delete all statements for this subject">&times;</button>
+          </div>
           <ul class="statement-list">
             <li
               class="statement-item statement-asserted"

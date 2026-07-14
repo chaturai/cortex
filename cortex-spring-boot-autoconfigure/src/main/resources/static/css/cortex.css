@@ -242,10 +242,17 @@ main {
   word-break: break-all;
 }
 
+.subject-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  margin: 1rem 0 0.25rem;
+}
+
 .subject-heading {
   font-size: 0.875rem;
   color: var(--base1);
-  margin: 1rem 0 0.25rem;
+  margin: 0;
 }
 
 .statement-object[contenteditable],
@@ -266,7 +273,8 @@ main {
   color: var(--yellow);
 }
 
-.statement-delete {
+.statement-delete,
+.subject-delete {
   background: transparent;
   border: none;
   color: var(--red);
@@ -278,8 +286,14 @@ main {
   transition: opacity 250ms ease;
 }
 
-.statement-item:hover .statement-delete {
+.statement-item:hover .statement-delete,
+.subject-header:hover .subject-delete {
   opacity: 1;
+}
+
+.branch-subject.deleted .subject-heading {
+  text-decoration: line-through;
+  color: var(--red);
 }
 
 .statement-item.deleted .statement-predicate,
