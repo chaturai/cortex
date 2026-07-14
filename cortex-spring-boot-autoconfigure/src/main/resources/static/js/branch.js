@@ -10,6 +10,12 @@ function refreshActions() {
   resetButton.hidden = !dirty;
 }
 
+function syncSubject(subject) {
+  const items = subject.querySelectorAll(".statement-item");
+  const allDeleted = [...items].every((item) => item.classList.contains("deleted"));
+  subject.classList.toggle("deleted", items.length > 0 && allDeleted);
+}
+
 statements.forEach((item) => {
   const object = item.querySelector(".statement-object");
 
@@ -20,6 +26,16 @@ statements.forEach((item) => {
 
   item.querySelector(".statement-delete").addEventListener("click", () => {
     item.classList.toggle("deleted");
+    syncSubject(item.closest(".branch-subject"));
+    refreshActions();
+  });
+});
+
+document.querySelectorAll(".branch-subject").forEach((subject) => {
+  subject.querySelector(".subject-delete").addEventListener("click", () => {
+    const deleted = !subject.classList.contains("deleted");
+    subject.classList.toggle("deleted", deleted);
+    subject.querySelectorAll(".statement-item").forEach((item) => item.classList.toggle("deleted", deleted));
     refreshActions();
   });
 });
@@ -45,6 +61,7 @@ resetButton.addEventListener("click", () => {
     heading.textContent = heading.dataset.name;
     heading.classList.remove("edited");
   });
+  document.querySelectorAll(".branch-subject").forEach((subject) => subject.classList.remove("deleted"));
   refreshActions();
 });
 
