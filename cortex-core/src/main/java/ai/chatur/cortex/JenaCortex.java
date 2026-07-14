@@ -108,6 +108,17 @@ public class JenaCortex implements Cortex {
   }
 
   @Override
+  public String exportAssertions() throws IOException {
+    return ingestService.exportAssertions();
+  }
+
+  @Override
+  public void importAssertions(String trig) {
+    ingestService.importAssertions(trig);
+    inferenceService.recomputeInference();
+  }
+
+  @Override
   public List<OntologyClass> getClassHierarchy() {
     return ontologyService.getClassHierarchy();
   }

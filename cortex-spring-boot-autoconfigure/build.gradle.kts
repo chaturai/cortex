@@ -14,6 +14,9 @@ dependencies {
   implementation(platform(libs.spring.boot.dependencies))
   implementation("org.springframework.boot:spring-boot-autoconfigure")
 
+  annotationProcessor(platform(libs.spring.boot.dependencies))
+  annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
+
   implementation(platform(libs.spring.ai.bom))
   implementation("org.springframework.ai:spring-ai-starter-mcp-server-webmvc")
 

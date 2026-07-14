@@ -16,10 +16,14 @@ import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import org.apache.jena.atlas.iterator.Iter;
+import org.apache.jena.graph.Graph;
 import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.ontapi.model.OntModel;
@@ -35,6 +39,7 @@ import org.apache.jena.rdfpatch.RDFPatchOps;
 import org.apache.jena.rdfpatch.changes.RDFChangesCollector;
 import org.apache.jena.riot.Lang;
 import org.apache.jena.riot.RDFDataMgr;
+import org.apache.jena.riot.RDFParser;
 import org.apache.jena.riot.RiotException;
 import org.apache.jena.shacl.ValidationReport;
 import org.apache.jena.sparql.core.Quad;
@@ -284,6 +289,9 @@ public class IngestService {
    * Applies reviewer changes — deletions and object edits — to the assertions staged on the given
    * branch, as an RDF patch on the branch graph.
    *
+   * <p>When the deletions remove every statement a subject carried, its IRI is gone from the
+   * branch, so every staged statement referencing that IRI as object is deleted as well.
+   *
    * <p>Changes addressing the provenance activity of the branch are ignored.
    *
    * @param branch the branch name
@@ -296,6 +304,7 @@ public class IngestService {
       return false;
     }
     Resource namedModel = CortexNamespace.getResource(branch);
+    Set<Node> deletionSubjects = new HashSet<>();
     RDFChangesCollector collector = new RDFChangesCollector();
     collector.txnBegin();
     for (BranchChange change : changes) {
@@ -309,18 +318,56 @@ public class IngestService {
       if (change.newObject() != null) {
         collector.add(
             namedModel.asNode(), subject, predicate, getObject(change.newObject(), change));
+      } else {
+        deletionSubjects.add(subject);
       }
     }
     collector.txnCommit();
     RDFPatchOps.applyChange(assertions.asDatasetGraph(), collector.getRDFPatch());
+    removeDanglingReferences(namedModel, deletionSubjects);
     log.info("Updated branch {} with {} changes", branch, changes.size());
     return true;
   }
 
   /**
-   * Renames subjects staged on the given branch, rewriting every staged statement in which a
-   * renamed subject appears — as subject or object — to use its new IRI, as an RDF patch on the
-   * branch graph.
+   * Deletes every statement staged on the branch whose object is an IRI that no longer appears as
+   * the subject of any staged statement — the references left dangling when a reviewer's deletions
+   * removed a subject entirely.
+   *
+   * @param namedModel the branch graph
+   * @param removed the subjects addressed by deletions, candidates for having been removed
+   */
+  void removeDanglingReferences(Resource namedModel, Set<Node> removed) {
+    if (removed.isEmpty()) return;
+    RDFChangesCollector collector = new RDFChangesCollector();
+    collector.txnBegin();
+    Txn.executeRead(
+        assertions,
+        () -> {
+          Graph graph = assertions.getNamedModel(namedModel).getGraph();
+          removed.stream()
+              .filter(node -> !graph.contains(node, Node.ANY, Node.ANY))
+              .forEach(
+                  node ->
+                      graph.stream(Node.ANY, Node.ANY, node)
+                          .forEach(
+                              triple ->
+                                  collector.delete(
+                                      namedModel.asNode(),
+                                      triple.getSubject(),
+                                      triple.getPredicate(),
+                                      triple.getObject())));
+        });
+    collector.txnCommit();
+    RDFPatchOps.applyChange(assertions.asDatasetGraph(), collector.getRDFPatch());
+  }
+
+  /**
+   * Renames subjects staged on the given branch, as an RDF patch on the branch graph.
+   *
+   * <p>Every staged statement referencing a renamed IRI as object is rewritten to reference the
+   * new IRI; the statements describing the renamed subject — those carrying the IRI as subject —
+   * are removed rather than rewritten.
    *
    * <p>Renames addressing the provenance activity of the branch are ignored.
    *
@@ -334,39 +381,43 @@ public class IngestService {
       return false;
     }
     Resource namedModel = CortexNamespace.getResource(branch);
-    RDFChangesCollector collector = new RDFChangesCollector();
-    collector.txnBegin();
+    Map<Node, Node> renamed = new HashMap<>();
     for (BranchRename rename : renames) {
       if (namedModel.getURI().equals(rename.subject())) {
         log.warn("Ignoring rename of the provenance activity of branch {}", branch);
         continue;
       }
-      Node subject = NodeFactory.createURI(rename.subject());
-      Node newSubject = NodeFactory.createURI(rename.newSubject());
-      Txn.executeRead(
-          assertions,
-          () ->
-              assertions.getNamedModel(namedModel).getGraph().stream()
-                  .filter(
-                      triple ->
-                          triple.getSubject().equals(subject) || triple.getObject().equals(subject))
-                  .forEach(
-                      triple -> {
-                        collector.delete(
+      renamed.put(
+          NodeFactory.createURI(rename.subject()), NodeFactory.createURI(rename.newSubject()));
+    }
+    RDFChangesCollector collector = new RDFChangesCollector();
+    collector.txnBegin();
+    Txn.executeRead(
+        assertions,
+        () ->
+            assertions.getNamedModel(namedModel).getGraph().stream()
+                .filter(
+                    triple ->
+                        renamed.containsKey(triple.getSubject())
+                            || renamed.containsKey(triple.getObject()))
+                .forEach(
+                    triple -> {
+                      collector.delete(
+                          namedModel.asNode(),
+                          triple.getSubject(),
+                          triple.getPredicate(),
+                          triple.getObject());
+                      if (!renamed.containsKey(triple.getSubject())) {
+                        collector.add(
                             namedModel.asNode(),
                             triple.getSubject(),
                             triple.getPredicate(),
-                            triple.getObject());
-                        collector.add(
-                            namedModel.asNode(),
-                            triple.getSubject().equals(subject) ? newSubject : triple.getSubject(),
-                            triple.getPredicate(),
-                            triple.getObject().equals(subject) ? newSubject : triple.getObject());
-                      }));
-    }
+                            renamed.get(triple.getObject()));
+                      }
+                    }));
     collector.txnCommit();
     RDFPatchOps.applyChange(assertions.asDatasetGraph(), collector.getRDFPatch());
-    log.info("Renamed {} subjects on branch {}", renames.size(), branch);
+    log.info("Renamed {} subjects on branch {}", renamed.size(), branch);
     return true;
   }
 
@@ -469,5 +520,44 @@ public class IngestService {
           assertions, () -> RDFDataMgr.write(writer, assertions.getDefaultModel(), Lang.TRIG));
     }
     return writer.toString();
+  }
+
+  /**
+   * Exports the entire assertions dataset — the approved assertions and every staged branch — for
+   * backup.
+   *
+   * @return the dataset serialized in TriG syntax
+   * @throws IOException if the dataset cannot be serialized
+   */
+  public String exportAssertions() throws IOException {
+    StringWriter writer = new StringWriter();
+    try (writer) {
+      Txn.executeRead(assertions, () -> RDFDataMgr.write(writer, assertions, Lang.TRIG));
+    }
+    return writer.toString();
+  }
+
+  /**
+   * Restores the assertions dataset from an {@link #exportAssertions() exported backup},
+   * replacing the approved assertions and every staged branch.
+   *
+   * <p>The replacement happens in a single transaction: if the backup cannot be parsed, the
+   * transaction is aborted and the dataset is left untouched.
+   *
+   * @param trig the backup, a dataset serialized in TriG syntax
+   */
+  public void importAssertions(String trig) {
+    Txn.executeWrite(
+        assertions,
+        () -> {
+          assertions.asDatasetGraph().clear();
+          RDFParser.fromString(trig, Lang.TRIG).parse(assertions.asDatasetGraph());
+        });
+    Txn.executeRead(
+        assertions,
+        () ->
+            log.info(
+                "Imported assertions dataset with {} approved triples",
+                assertions.getDefaultModel().size()));
   }
 }
