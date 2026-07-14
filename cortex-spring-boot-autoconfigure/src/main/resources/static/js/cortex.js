@@ -6,8 +6,8 @@ document.querySelectorAll("code.linkify").forEach((code) => {
     code.innerHTML = escapeHtml(code.textContent)
       .split("\n")
       .map((line) => {
-          return line.replace(/cortex:(\w[\w-]*)/g, (match, prefix) => {
-              return `<a href="/assertions/${prefix}" class="code-link"><b>${prefix}</b></a>`;
+          return line.replace(/cortex:(?:\/\/)?((?:[\w-]+\/)*[\w-]+)/g, (match, id) => {
+              return `<a href="/assertions/${id}" class="code-link"><b>${id}</b></a>`;
           });
       })
       .join("<br>");

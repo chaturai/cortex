@@ -115,6 +115,10 @@ public class QueryService {
    * Returns everything known about a resource, with the creation timestamp of each statement where
    * provenance was recorded.
    *
+   * <p>Each statement is returned once: statements carrying several provenance records — for
+   * example because they were asserted by more than one ingestion — report their earliest creation
+   * timestamp.
+   *
    * @param id the identifier of the resource within the Cortex namespace
    * @return the statements about the resource, sorted by predicate
    */
@@ -124,15 +128,16 @@ public class QueryService {
             """
             PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
             PREFIX prov: <http://www.w3.org/ns/prov#>
-            SELECT ?predicate ?object ?created
+            SELECT ?predicate ?object (MIN(?ended) AS ?created)
             WHERE {
               ?subject ?predicate ?object .
               OPTIONAL {
                 ?reifier rdf:reifies <<( ?subject ?predicate ?object )>> .
                 ?reifier prov:wasGeneratedBy ?activity .
-                ?activity prov:endedAtTime ?created .
+                ?activity prov:endedAtTime ?ended .
               }
             }
+            GROUP BY ?predicate ?object
             ORDER BY ?predicate ?object
             """);
     Resource subject = CortexNamespace.getResource(id);
