@@ -12,7 +12,6 @@ import org.apache.jena.query.DatasetFactory;
 import org.apache.jena.query.text.EntityDefinition;
 import org.apache.jena.query.text.TextDatasetFactory;
 import org.apache.jena.query.text.TextIndexConfig;
-import org.apache.jena.vocabulary.RDF;
 import org.apache.jena.vocabulary.RDFS;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexWriter;
@@ -41,9 +40,7 @@ public class QueryConfiguration {
   @Qualifier("inferences")
   Dataset inferences(CortexProperties properties) {
     Dataset baseDataset = DatasetFactory.createTxnMem();
-    EntityDefinition entityDef = new EntityDefinition("uri", "text", RDFS.label);
-    entityDef.set("text", RDFS.comment.asNode());
-    entityDef.set("text", RDF.type.asNode());
+    EntityDefinition entityDef = new EntityDefinition("uri", "text", RDFS.comment);
     // a uid per indexed triple lets the index delete documents when triples are removed, instead
     // of silently ignoring deletions and accumulating duplicates
     entityDef.setUidField("uid");
@@ -75,8 +72,11 @@ public class QueryConfiguration {
   }
 
   @Bean
-  QueryService queryService(@Qualifier("inferences") Dataset inferences, OntModel ontModel) {
-    return new QueryService(inferences, ontModel);
+  QueryService queryService(
+      @Qualifier("inferences") Dataset inferences,
+      @Qualifier("assertions") Dataset assertions,
+      OntModel ontModel) {
+    return new QueryService(inferences, assertions, ontModel);
   }
 
   @Bean

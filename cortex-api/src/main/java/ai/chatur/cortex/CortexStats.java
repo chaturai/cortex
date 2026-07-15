@@ -7,8 +7,8 @@ package ai.chatur.cortex;
  * @param triplesAddedToday the number of triples approved into the knowledge graph today, according
  *     to their recorded provenance
  * @param pendingBranches the number of branches with staged assertions awaiting review
- * @param assertionTriples the total number of triples in the approved assertions, including
- *     provenance triples
+ * @param assertionTriples the total number of triples in the approved assertions, excluding
+ *     provenance triples, which are kept in a separate graph
  * @param inferenceTriples the total number of triples visible to queries, including statements
  *     derived by inference
  * @param ontologyClasses the number of classes defined in the ontology

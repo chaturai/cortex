@@ -112,7 +112,10 @@ public class EndToEndTests {
       // The reviewer approves the branch
       HttpResponse<String> approved = postForm("/branches/" + branch + "/approve");
       assert (approved.statusCode() >= 300 && approved.statusCode() < 400);
-      assert (!get("/branches").contains(branch));
+      String branchesAfterApprove = get("/branches");
+      assert (!branchesAfterApprove.contains(branch));
+      // The provenance graph is not a branch
+      assert (!branchesAfterApprove.contains("provenance"));
 
       // The approved assertions carry provenance on the describe page
       String describePage = get("/assertions/assertions/E2ETask");

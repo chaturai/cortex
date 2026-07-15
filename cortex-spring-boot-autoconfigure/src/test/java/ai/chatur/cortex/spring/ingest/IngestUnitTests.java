@@ -327,10 +327,59 @@ public class IngestUnitTests {
     assert (!statements.isEmpty());
     ProvenancedStatement assigned =
         statements.stream()
-            .filter(statement -> statement.predicate().contains("assignedTo"))
+            .filter(statement -> "cortex://ontology/assignedTo".equals(statement.predicate().uri()))
             .findFirst()
             .orElseThrow();
     assert (assigned.created() != null);
+    assert ("cortex".equals(assigned.object().prefix()));
+    assert ("assertions/ValidAgent".equals(assigned.object().localName()));
+    assert ("cortex://assertions/ValidAgent".equals(assigned.object().uri()));
+  }
+
+  @Test
+  void describeShouldReturnLiteralsWithoutUri() throws IOException {
+    String uuid = UUID.randomUUID().toString();
+    approve(
+        """
+        @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+        @prefix o: <cortex://ontology/> .
+        @prefix : <cortex://assertions/> .
+
+        :Task-%1$s o:assignedTo :Agent-%1$s .
+        :Agent-%1$s rdfs:label "agent %1$s" .
+        """
+            .formatted(uuid));
+
+    List<ProvenancedStatement> statements = cortex.describe("assertions/Agent-" + uuid);
+    ProvenancedStatement label =
+        statements.stream()
+            .filter(
+                statement ->
+                    "http://www.w3.org/2000/01/rdf-schema#label"
+                        .equals(statement.predicate().uri()))
+            .findFirst()
+            .orElseThrow();
+    assert ("rdfs".equals(label.predicate().prefix()));
+    assert ("label".equals(label.predicate().localName()));
+    assert (label.object().prefix() == null);
+    assert (label.object().uri() == null);
+    assert (("agent " + uuid).equals(label.object().localName()));
+  }
+
+  @Test
+  void controllerShouldRenderDescribeViewForFullUri() throws IOException {
+    approve(validAssertion.getContentAsString(Charset.defaultCharset()));
+
+    Model model = new ExtendedModelMap();
+    String view = ingestController.describeUri("cortex://assertions/ValidTask", model);
+    assert (view.equals("describe"));
+    assert ("cortex://assertions/ValidTask".equals(model.getAttribute("subject")));
+
+    @SuppressWarnings("unchecked")
+    List<ProvenancedStatement> statements =
+        (List<ProvenancedStatement>) model.getAttribute("statements");
+    assert (statements != null);
+    assert (!statements.isEmpty());
   }
 
   @Test
@@ -355,9 +404,48 @@ public class IngestUnitTests {
     List<ProvenancedStatement> statements = cortex.describe("assertions/Task-" + uuid);
     assert (statements.size() == statements.stream().distinct().count());
     assert (statements.stream()
-            .filter(statement -> statement.predicate().contains("assignedTo"))
+            .filter(statement -> "cortex://ontology/assignedTo".equals(statement.predicate().uri()))
             .count()
         == 1);
+  }
+
+  @Test
+  void listBranchesShouldExcludeProvenanceGraph() throws IOException {
+    approve(freshAssertion());
+
+    assert (!cortex.listBranches().contains("provenance"));
+    assert (!cortex.hasBranch("provenance"));
+  }
+
+  @Test
+  void assertionsShouldNotCarryProvenance() throws IOException {
+    approve(freshAssertion());
+
+    String trig = cortex.getAssertions();
+    assert (trig.contains("assignedTo"));
+    assert (!trig.contains("reifies"));
+    assert (!trig.contains("wasGeneratedBy"));
+    assert (!trig.contains("endedAtTime"));
+  }
+
+  @Test
+  void approvalsShouldExtendInferenceIncrementally() throws IOException {
+    String firstUuid = UUID.randomUUID().toString();
+    String secondUuid = UUID.randomUUID().toString();
+    String template =
+        """
+        @prefix o: <cortex://ontology/> .
+        @prefix : <cortex://assertions/> .
+
+        :Task-%1$s o:assignedTo :Agent-%1$s .
+        """;
+    approve(template.formatted(firstUuid));
+    approve(template.formatted(secondUuid));
+
+    // The tasks are typed by the domain rule, without any explicit recomputation
+    List<String> instances = cortex.getInstances("Task");
+    assert (instances.contains("assertions/Task-" + firstUuid));
+    assert (instances.contains("assertions/Task-" + secondUuid));
   }
 
   @Test

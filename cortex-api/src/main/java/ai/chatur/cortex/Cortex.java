@@ -131,8 +131,9 @@ public interface Cortex {
   /**
    * Merges the assertions staged on the given branch into the knowledge graph.
    *
-   * <p>Each merged statement is recorded with creation provenance, the branch is deleted, and
-   * inference is recomputed. Does nothing if the branch does not exist.
+   * <p>Each merged statement is recorded with creation provenance, the branch is deleted, and the
+   * newly approved statements are added to the inference closure incrementally. Does nothing if the
+   * branch does not exist.
    *
    * @param branch the branch name
    */
@@ -192,7 +193,8 @@ public interface Cortex {
   /**
    * Returns everything known about a resource, including statements derived by inference.
    *
-   * @param id the identifier of the resource, as returned by {@link #getInstances(String)}
+   * @param id the identifier of the resource, as returned by {@link #getInstances(String)}, or a
+   *     full URI
    * @return the statements about the resource with their provenance, sorted by predicate
    */
   List<ProvenancedStatement> describe(String id);
@@ -239,7 +241,8 @@ public interface Cortex {
   /**
    * Rebuilds the statements derived by inference from the current assertions.
    *
-   * <p>Invoked automatically after every {@link #approve(String)}; call it directly only when the
+   * <p>Invoked automatically at startup and after {@link #importAssertions(String)}; {@link
+   * #approve(String)} extends the closure incrementally instead. Call this directly only when the
    * underlying assertions have been modified through other means.
    */
   void recomputeInference();

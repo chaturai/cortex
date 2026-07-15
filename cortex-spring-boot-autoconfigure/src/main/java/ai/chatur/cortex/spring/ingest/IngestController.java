@@ -34,6 +34,13 @@ public class IngestController {
     this.cortex = cortex;
   }
 
+  @GetMapping(value = "/assertions", params = "uri")
+  public String describeUri(@RequestParam("uri") String uri, Model model) {
+    model.addAttribute("subject", uri);
+    model.addAttribute("statements", cortex.describe(uri));
+    return "describe";
+  }
+
   @GetMapping("/assertions")
   public String getAssertions(
       @RequestParam(value = "type", required = false) String type, Model model) {

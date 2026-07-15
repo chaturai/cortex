@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.apache.jena.ontapi.model.OntModel;
 import org.apache.jena.query.Dataset;
+import org.apache.jena.reasoner.Reasoner;
 import org.apache.jena.reasoner.rulesys.GenericRuleReasoner;
 import org.apache.jena.reasoner.rulesys.Rule;
 import org.slf4j.Logger;
@@ -19,18 +20,26 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
 
 /**
- * Configures rule-based inference: a {@link GenericRuleReasoner} loaded from the configured rules
- * files, the {@link InferenceService} that applies the OWL-Full closure of the ontology followed by
- * those rules, and an initializer that computes inference on startup.
+ * Configures rule-based inference: a {@link GenericRuleReasoner} running Jena's OWL micro rules
+ * plus the configured rules files and bound to the ontology as schema, the {@link InferenceService}
+ * that applies it, and an initializer that computes inference on startup.
  */
 @Configuration
 public class InferenceConfiguration {
 
   private static final Logger log = LoggerFactory.getLogger(InferenceConfiguration.class);
 
+  /**
+   * The OWL micro rule set shipped inside the jena-core jar, resolved from the classpath by Jena's
+   * file manager — the same rules the {@code OWLMicroReasoner} runs, giving lightweight OWL
+   * semantics without the full OWL reasoner.
+   */
+  static final String MICRO_RULES = "etc/owl-fb-micro.rules";
+
   @Bean
   GenericRuleReasoner genericRuleReasoner(CortexProperties properties) throws IOException {
-    List<Rule> rules = new ArrayList<>();
+    List<Rule> rules = new ArrayList<>(Rule.rulesFromURL(MICRO_RULES));
+    log.info("Loaded {} OWL micro inference rules from {}", rules.size(), MICRO_RULES);
     for (Resource resource : properties.rules()) {
       // Read via the input stream: Resource.getFile() fails for classpath resources inside a jar
       List<Rule> loaded = Rule.parseRules(resource.getContentAsString(StandardCharsets.UTF_8));
@@ -38,7 +47,7 @@ public class InferenceConfiguration {
       rules.addAll(loaded);
     }
     GenericRuleReasoner genericRuleReasoner = new GenericRuleReasoner(rules);
-    genericRuleReasoner.setOWLTranslation(true);
+    genericRuleReasoner.setMode(GenericRuleReasoner.HYBRID);
     genericRuleReasoner.setTransitiveClosureCaching(true);
     return genericRuleReasoner;
   }
@@ -49,7 +58,8 @@ public class InferenceConfiguration {
       @Qualifier("inferences") Dataset inferences,
       GenericRuleReasoner genericRuleReasoner,
       OntModel ontModel) {
-    return new InferenceService(assertions, inferences, genericRuleReasoner, ontModel);
+    Reasoner reasoner = genericRuleReasoner.bindSchema(ontModel);
+    return new InferenceService(assertions, inferences, reasoner);
   }
 
   @Bean
