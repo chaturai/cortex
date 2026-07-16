@@ -1,4 +1,4 @@
-@prefix o: <cortex://ontology/> .
-@prefix : <cortex://assertions/>
+@prefix : <example://ontology#> .
+@prefix kb: <example://kb/> .
 
-:ValidTask o:assignedTo :ValidAgent .
+kb:ValidTask :assignedTo kb:ValidAgent .

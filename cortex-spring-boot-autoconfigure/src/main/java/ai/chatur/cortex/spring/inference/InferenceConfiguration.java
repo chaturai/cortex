@@ -29,17 +29,9 @@ public class InferenceConfiguration {
 
   private static final Logger log = LoggerFactory.getLogger(InferenceConfiguration.class);
 
-  /**
-   * The OWL micro rule set shipped inside the jena-core jar, resolved from the classpath by Jena's
-   * file manager — the same rules the {@code OWLMicroReasoner} runs, giving lightweight OWL
-   * semantics without the full OWL reasoner.
-   */
-  static final String MICRO_RULES = "etc/owl-fb-micro.rules";
-
   @Bean
   GenericRuleReasoner genericRuleReasoner(CortexProperties properties) throws IOException {
-    List<Rule> rules = new ArrayList<>(Rule.rulesFromURL(MICRO_RULES));
-    log.info("Loaded {} OWL micro inference rules from {}", rules.size(), MICRO_RULES);
+    List<Rule> rules = new ArrayList<>();
     for (Resource resource : properties.rules()) {
       // Read via the input stream: Resource.getFile() fails for classpath resources inside a jar
       List<Rule> loaded = Rule.parseRules(resource.getContentAsString(StandardCharsets.UTF_8));
@@ -47,7 +39,7 @@ public class InferenceConfiguration {
       rules.addAll(loaded);
     }
     GenericRuleReasoner genericRuleReasoner = new GenericRuleReasoner(rules);
-    genericRuleReasoner.setMode(GenericRuleReasoner.HYBRID);
+    genericRuleReasoner.setOWLTranslation(true);
     genericRuleReasoner.setTransitiveClosureCaching(true);
     return genericRuleReasoner;
   }

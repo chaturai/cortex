@@ -56,7 +56,6 @@ public class QueryService {
   private final Dataset inferences;
   private final Dataset assertions;
   private final OntModel ontModel;
-  private final String NS;
 
   /**
    * Creates the service.
@@ -69,7 +68,6 @@ public class QueryService {
     this.inferences = inferences;
     this.assertions = assertions;
     this.ontModel = ontModel;
-    this.NS = ontModel.getNsPrefixURI("");
   }
 
   /**
@@ -81,7 +79,7 @@ public class QueryService {
   public List<String> getInstances(String type) {
     return ontModel
         .classes()
-        .filter(ontClass -> ontClass.getLocalName().equals(type))
+        .filter(ontClass -> ontClass.getURI().equals(type))
         .findFirst()
         .map(this::listInstances)
         .orElseGet(
@@ -106,8 +104,8 @@ public class QueryService {
                 .forEachRemaining(
                     solution -> {
                       Resource instance = solution.getResource("instance");
-                      if (instance.isURIResource() && instance.getURI().startsWith(NS)) {
-                        instances.add(instance.getURI().substring(NS.length()));
+                      if (instance.isURIResource()) {
+                        instances.add(instance.getURI());
                       }
                     });
             instances.sort(Comparator.naturalOrder());
@@ -157,10 +155,7 @@ public class QueryService {
    * @return the statements about the resource, sorted by predicate
    */
   public List<ProvenancedStatement> describe(String id) {
-    Resource subject =
-        id.contains("://")
-            ? ResourceFactory.createResource(id)
-            : ResourceFactory.createResource(NS + id);
+    Resource subject = ResourceFactory.createResource(id);
     Map<StatementKey, String> created = getCreated(subject);
     return Txn.calculateRead(
         inferences,
@@ -313,11 +308,10 @@ public class QueryService {
                 .forEachRemaining(
                     solution -> {
                       Resource subject = solution.getResource("subject");
-                      if (subject.isURIResource()
-                          && subject.getURI().startsWith(CortexNamespace.NS)) {
+                      if (subject.isURIResource()) {
                         results.add(
                             new SearchResult(
-                                subject.getURI().substring(CortexNamespace.NS.length()),
+                                subject.getURI(),
                                 solution.contains("match")
                                     ? solution.getLiteral("match").getLexicalForm()
                                     : null));

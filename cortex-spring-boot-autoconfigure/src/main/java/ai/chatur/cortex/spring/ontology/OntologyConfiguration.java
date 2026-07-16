@@ -25,7 +25,7 @@ public class OntologyConfiguration {
   @Bean
   OntModel ontModel(CortexProperties properties) throws IOException {
     OntModel ontModel = OntModelFactory.createModel();
-    for (Resource ontology : properties.ontology()) {
+    for (Resource ontology : properties.ontologies()) {
       ontModel.read(ontology.getInputStream(), null, "TTL");
       log.info("Loaded ontology from {}", ontology);
     }

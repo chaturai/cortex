@@ -18,10 +18,10 @@ public class StatsUnitTests {
   /** Assertions never seen before, so every test stages a branch regardless of run order. */
   String freshAssertion() {
     return """
-        @prefix o: <cortex://ontology/> .
-        @prefix : <cortex://assertions/> .
+        @prefix : <example://ontology#> .
+        @prefix kb: <example://kb/> .
 
-        :Task-%1$s o:assignedTo :Agent-%1$s .
+        kb:Task-%1$s :assignedTo kb:Agent-%1$s .
         """
         .formatted(UUID.randomUUID());
   }
@@ -44,11 +44,5 @@ public class StatsUnitTests {
     assert (stats.pendingBranches() == cortex.listBranches().size());
 
     cortex.reject(staged.branch());
-  }
-
-  @Test
-  void rulesShouldIncludeMicroRules() {
-    // The test rules file carries 3 custom rules; the OWL micro rules are loaded on top
-    assert (cortex.getStats().rules() > 3);
   }
 }
