@@ -11,14 +11,14 @@
             <code class="statement-predicate">
               <a
                 class="code-link"
-                th:href="@{/assertions(uri=${statement.predicate.uri})}"
+                th:href="@{/describe(uri=${statement.predicate.uri})}"
                 th:text="${statement.predicate.prefix != null ? statement.predicate.prefix + ':' + statement.predicate.localName : statement.predicate.localName}"></a>
             </code>
             <code class="statement-object">
               <a
                 class="code-link"
                 th:if="${statement.object.uri != null}"
-                th:href="@{/assertions(uri=${statement.object.uri})}"
+                th:href="@{/describe(uri=${statement.object.uri})}"
                 th:text="${statement.object.prefix != null ? statement.object.prefix + ':' + statement.object.localName : statement.object.localName}"></a>
               <span th:unless="${statement.object.uri != null}" th:text="${statement.object.localName}"></span>
             </code>

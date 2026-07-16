@@ -10,8 +10,8 @@
           <li class="instance-item search-result" th:each="result : ${results}">
             <a
               class="instance-link"
-              th:href="@{'/assertions/' + ${result.subject}}"
-              th:text="${result.subject}"></a>
+              th:href="@{/describe(uri=${result.subject.uri})}"
+              th:text="${result.subject.prefix != null ? result.subject.prefix + ':' + result.subject.localName : result.subject.localName}"></a>
             <span class="search-match" th:if="${result.match != null}" th:text="${result.match}"></span>
           </li>
         </ul>

@@ -188,7 +188,7 @@ public interface Cortex {
    * @param type the local name of the ontology class
    * @return the instance identifiers sorted alphabetically, empty if the class is unknown
    */
-  List<String> getInstances(String type);
+  List<Term> getInstances(String type);
 
   /**
    * Returns everything known about a resource, including statements derived by inference.

@@ -1,14 +1,6 @@
 package ai.chatur.cortex.spring.ingest;
 
-import ai.chatur.cortex.BranchChange;
-import ai.chatur.cortex.BranchInfo;
-import ai.chatur.cortex.BranchRename;
-import ai.chatur.cortex.BranchStatement;
-import ai.chatur.cortex.BranchSubject;
-import ai.chatur.cortex.Cortex;
-import ai.chatur.cortex.IngestResult;
-import ai.chatur.cortex.OntologyClass;
-import ai.chatur.cortex.ProvenancedStatement;
+import ai.chatur.cortex.*;
 import ai.chatur.cortex.spring.CortexConfiguration;
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -289,9 +281,9 @@ public class IngestUnitTests {
     @SuppressWarnings("unchecked")
     List<OntologyClass> classes = (List<OntologyClass>) model.getAttribute("classes");
     assert (classes != null);
-    List<String> names = classes.stream().map(OntologyClass::name).toList();
-    assert (names.contains("Task"));
-    assert (names.contains("Agent"));
+    List<Term> names = classes.stream().map(OntologyClass::term).toList();
+    assert (names.contains(new Term("", "Task", "example://ontology#Task")));
+    assert (names.contains(new Term("", "Agent", "example://ontology#Agent")));
   }
 
   @Test
@@ -304,9 +296,9 @@ public class IngestUnitTests {
     assert ("example://ontology#Task".equals(model.getAttribute("type")));
 
     @SuppressWarnings("unchecked")
-    List<String> instances = (List<String>) model.getAttribute("instances");
+    List<Term> instances = (List<Term>) model.getAttribute("instances");
     assert (instances != null);
-    assert (instances.contains("example://kb/ValidTask"));
+    assert (instances.contains(new Term("kb", "ValidTask", "example://kb/ValidTask")));
   }
 
   @Test
@@ -314,7 +306,7 @@ public class IngestUnitTests {
     String id = "test";
 
     Model model = new ExtendedModelMap();
-    String view = ingestController.describe(id, model);
+    String view = ingestController.describeUri(id, model);
     assert (view.equals("describe"));
     assert (id.equals(model.getAttribute("subject")));
     assert (cortex.describe(id).equals(model.getAttribute("statements")));
@@ -446,9 +438,11 @@ public class IngestUnitTests {
     approve(template.formatted(secondUuid));
 
     // The tasks are typed by the domain rule, without any explicit recomputation
-    List<String> instances = cortex.getInstances("example://ontology#Task");
-    assert (instances.contains("example://kb/Task-" + firstUuid));
-    assert (instances.contains("example://kb/Task-" + secondUuid));
+    List<Term> instances = cortex.getInstances("example://ontology#Task");
+    assert (instances.contains(
+        new Term("kb", "Task-" + firstUuid, "example://kb/Task-" + firstUuid)));
+    assert (instances.contains(
+        new Term("kb", "Task-" + secondUuid, "example://kb/Task-" + secondUuid)));
   }
 
   @Test

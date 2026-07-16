@@ -1,9 +1,9 @@
 package ai.chatur.cortex.core.ontology;
 
 import ai.chatur.cortex.OntologyClass;
+import ai.chatur.cortex.Term;
 import java.io.IOException;
 import java.io.StringWriter;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -50,7 +50,6 @@ public class OntologyService {
         .hierarchyRoots()
         .filter(OntClass::isURIResource)
         .map(root -> getOntologyClass(root, new HashSet<>()))
-        .sorted(Comparator.comparing(OntologyClass::name))
         .toList();
   }
 
@@ -63,8 +62,12 @@ public class OntologyService {
             .filter(OntClass::isURIResource)
             .filter(subClass -> !path.contains(subClass))
             .map(subClass -> getOntologyClass(subClass, path))
-            .sorted(Comparator.comparing(OntologyClass::name))
             .toList();
-    return new OntologyClass(ontClass.getLocalName(), subClasses);
+    return new OntologyClass(
+        new Term(
+            ontModel.getNsURIPrefix(ontClass.getNameSpace()),
+            ontClass.getLocalName(),
+            ontClass.getURI()),
+        subClasses);
   }
 }

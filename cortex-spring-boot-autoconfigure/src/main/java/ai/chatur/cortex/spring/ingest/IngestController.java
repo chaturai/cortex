@@ -34,7 +34,7 @@ public class IngestController {
     this.cortex = cortex;
   }
 
-  @GetMapping(value = "/assertions", params = "uri")
+  @GetMapping(value = "/describe", params = "uri")
   public String describeUri(@RequestParam("uri") String uri, Model model) {
     model.addAttribute("subject", uri);
     model.addAttribute("statements", cortex.describe(uri));
@@ -99,14 +99,6 @@ public class IngestController {
       throws IOException {
     cortex.importAssertions(new String(file.getBytes(), StandardCharsets.UTF_8));
     return new RedirectView("/assertions");
-  }
-
-  @GetMapping("/assertions/{*id}")
-  public String describe(@PathVariable("id") String id, Model model) {
-    String subject = id.startsWith("/") ? id.substring(1) : id;
-    model.addAttribute("subject", subject);
-    model.addAttribute("statements", cortex.describe(subject));
-    return "describe";
   }
 
   @PostMapping("/branches/{branch}/approve")

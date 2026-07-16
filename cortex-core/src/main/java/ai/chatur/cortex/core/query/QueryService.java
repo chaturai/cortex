@@ -1,13 +1,12 @@
 package ai.chatur.cortex.core.query;
 
 import ai.chatur.cortex.ProvenancedStatement;
-import ai.chatur.cortex.ProvenancedStatement.Term;
 import ai.chatur.cortex.SearchResult;
+import ai.chatur.cortex.Term;
 import ai.chatur.cortex.core.CortexNamespace;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -76,7 +75,8 @@ public class QueryService {
    * @param type the local name of the ontology class
    * @return the instance identifiers sorted alphabetically, empty if the class is unknown
    */
-  public List<String> getInstances(String type) {
+  public List<Term> getInstances(String type) {
+    System.out.println(type);
     return ontModel
         .classes()
         .filter(ontClass -> ontClass.getURI().equals(type))
@@ -89,7 +89,7 @@ public class QueryService {
             });
   }
 
-  List<String> listInstances(OntClass ontClass) {
+  List<Term> listInstances(OntClass ontClass) {
     Query query =
         QueryFactory.create(
             "SELECT DISTINCT ?instance WHERE { ?instance a <" + ontClass.getURI() + "> }");
@@ -98,17 +98,20 @@ public class QueryService {
         () -> {
           QueryExecution queryExecution = getQueryExecution(query);
           try (queryExecution) {
-            List<String> instances = new ArrayList<>();
+            List<Term> instances = new ArrayList<>();
             queryExecution
                 .execSelect()
                 .forEachRemaining(
                     solution -> {
                       Resource instance = solution.getResource("instance");
                       if (instance.isURIResource()) {
-                        instances.add(instance.getURI());
+                        instances.add(
+                            new Term(
+                                ontModel.getNsURIPrefix(instance.getNameSpace()),
+                                instance.getLocalName(),
+                                instance.getURI()));
                       }
                     });
-            instances.sort(Comparator.naturalOrder());
             return instances;
           }
         });
@@ -311,7 +314,10 @@ public class QueryService {
                       if (subject.isURIResource()) {
                         results.add(
                             new SearchResult(
-                                subject.getURI(),
+                                new Term(
+                                    ontModel.getNsURIPrefix(subject.getNameSpace()),
+                                    subject.getLocalName(),
+                                    subject.getURI()),
                                 solution.contains("match")
                                     ? solution.getLiteral("match").getLexicalForm()
                                     : null));

@@ -127,7 +127,7 @@ public class JenaCortex implements Cortex {
   }
 
   @Override
-  public List<String> getInstances(String type) {
+  public List<Term> getInstances(String type) {
     return queryService.getInstances(type);
   }
 

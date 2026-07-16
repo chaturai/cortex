@@ -35,14 +35,15 @@ public class EndToEndTests {
   static final String TTL =
       """
       @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-      @prefix o: <cortex://ontology/> .
-      @prefix : <cortex://assertions/> .
 
-      :E2EAgent a o:Agent ;
+      @prefix : <example://ontology#> .
+      @prefix kb: <example://kb/> .
+
+      kb:E2EAgent a :Agent ;
           rdfs:label "end to end agent" .
 
-      :E2ETask a o:Task ;
-          o:assignedTo :E2EAgent ;
+      kb:E2ETask a :Task ;
+          :assignedTo kb:E2EAgent ;
           rdfs:label "end to end task" ;
           rdfs:comment "task used by the end to end test" .
       """;
@@ -81,7 +82,7 @@ public class EndToEndTests {
       String branchPage = get("/branches/" + branch);
       assert (branchPage.contains("E2ETask"));
       assert (branchPage.contains("E2EAgent"));
-      assert (branchPage.contains("data-subject=\"cortex://assertions/E2ETask\""));
+      assert (branchPage.contains("data-subject=\"example://kb/E2ETask\""));
       assert (branchPage.contains("end to end task"));
       assert (branchPage.contains("Approve"));
       assert (branchPage.contains("Delete"));
@@ -90,12 +91,12 @@ public class EndToEndTests {
       String changes =
           """
           [
-            {"subject":"cortex://assertions/E2ETask",
+            {"subject":"example://kb/E2ETask",
              "predicate":"http://www.w3.org/2000/01/rdf-schema#label",
              "object":"end to end task","literal":true,
              "datatype":"http://www.w3.org/2001/XMLSchema#string",
              "newObject":"edited end to end task"},
-            {"subject":"cortex://assertions/E2ETask",
+            {"subject":"example://kb/E2ETask",
              "predicate":"http://www.w3.org/2000/01/rdf-schema#comment",
              "object":"task used by the end to end test","literal":true,
              "datatype":"http://www.w3.org/2001/XMLSchema#string",
@@ -118,7 +119,7 @@ public class EndToEndTests {
       assert (!branchesAfterApprove.contains("provenance"));
 
       // The approved assertions carry provenance on the describe page
-      String describePage = get("/assertions/assertions/E2ETask");
+      String describePage = get("/describe?uri=example://kb/E2ETask");
       assert (describePage.contains("edited end to end task"));
       assert (describePage.contains("statement-created"));
 
@@ -131,7 +132,7 @@ public class EndToEndTests {
 
     // The reviewer finds them through the UI search bar
     String searchPage = get("/search?q=edited");
-    assert (searchPage.contains("assertions/E2ETask"));
+    assert (searchPage.contains("describe?uri=example://kb/E2ETask"));
     assert (searchPage.contains("edited end to end task"));
   }
 

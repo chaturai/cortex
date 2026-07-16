@@ -3,8 +3,8 @@
 @prefix sh:   <http://www.w3.org/ns/shacl#> .
 @prefix prov: <http://www.w3.org/ns/prov#> .
 
-@prefix : <cortex://ontology/> .
-@prefix s: <cortex://shapes/> .
+@prefix : <example://ontology#> .
+@prefix s: <example://shapes#> .
 
 s:AssertionShape a sh:NodeShape ;
     sh:targetSubjectsOf rdf:type ;
@@ -18,8 +18,8 @@ s:AssertionShape a sh:NodeShape ;
     sh:targetSubjectsOf :hasValue ;
 
     sh:nodeKind sh:IRI ;
-    sh:pattern "^cortex://[^/?#]+$" ;
-    sh:message "assertions must be cortex://{name} IRIs without sub-paths" ;
+    sh:pattern "^example://kb/[^/?#]+$" ;
+    sh:message "assertions must be example://kb/{name} IRIs without sub-paths" ;
 
     sh:property [
         sh:path rdf:type ;

@@ -63,7 +63,9 @@ public class SearchUnitTests {
     cortex.recomputeInference();
 
     List<SearchResult> results = cortex.searchSubjects("quarterly");
-    assert (results.stream().filter(result -> result.subject().contains("SearchTask")).count()
+    assert (results.stream()
+            .filter(result -> result.subject().localName().equals("SearchTask"))
+            .count()
         == 1);
   }
 
@@ -75,7 +77,7 @@ public class SearchUnitTests {
     assert (!results.isEmpty());
     SearchResult hit =
         results.stream()
-            .filter(result -> result.subject().contains("SearchTask"))
+            .filter(result -> result.subject().localName().equals("SearchTask"))
             .findFirst()
             .orElseThrow();
     assert (hit.match() != null);
