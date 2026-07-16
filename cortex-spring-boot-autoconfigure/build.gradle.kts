@@ -9,6 +9,16 @@ description =
 dependencies {
   api(project(":cortex-core"))
 
+  // Redundant with the `api(project(":cortex-core"))` dependency above for coverage-aggregation
+  // purposes today — Gradle's variant-aware resolution already surfaces cortex-core's (and,
+  // transitively, cortex-api's) JaCoCo coverage-data variant through that normal project
+  // dependency edge, since both apply the `jacoco` plugin via `cortex-library-conventions`.
+  // Declared explicitly anyway so the aggregation doesn't silently go dark if that dependency is
+  // ever changed to `implementation`-only in a different configuration, or resolved differently by
+  // a future Gradle version.
+  jacocoAggregation(project(":cortex-core"))
+  jacocoAggregation(project(":cortex-api"))
+
   implementation(libs.slf4j.api)
 
   implementation(platform(libs.spring.boot.dependencies))

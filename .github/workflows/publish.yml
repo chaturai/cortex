@@ -43,6 +43,16 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag "v$version"
+
+          # Keep README.md's install snippets pointing at the version that was just published to
+          # Maven Central. This is what the 0.0.1-vs-0.0.6 drift was: this job bumped
+          # gradle.properties and tagged on every release, but nothing ever touched the docs, so
+          # README.md kept advertising the version it happened to be written at. Do this with
+          # $version (just published), not the $next dev version computed below, so the README
+          # always names an artifact that actually exists on Maven Central.
+          sed -i -E "s/(cortex-spring-boot-starter:)[0-9]+\.[0-9]+\.[0-9]+/\1$version/" README.md
+          sed -i -E "s/(<version>)[0-9]+\.[0-9]+\.[0-9]+(<\/version>)/\1$version\2/" README.md
+
           IFS=. read -r major minor patch <<< "$version"
           next="$major.$minor.$((patch + 1))"
           sed -i "s/^version=.*/version=$next/" gradle.properties

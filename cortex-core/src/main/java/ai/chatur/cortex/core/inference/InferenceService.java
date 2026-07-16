@@ -1,11 +1,10 @@
 package ai.chatur.cortex.core.inference;
 
+import ai.chatur.cortex.core.jena.DatasetPatch;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.rdf.model.InfModel;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
-import org.apache.jena.rdfpatch.RDFPatchOps;
-import org.apache.jena.rdfpatch.changes.RDFChangesCollector;
 import org.apache.jena.reasoner.Reasoner;
 import org.apache.jena.sparql.core.Quad;
 import org.apache.jena.system.Txn;
@@ -17,12 +16,16 @@ import org.slf4j.LoggerFactory;
  *
  * <p>The inference results are materialized into a separate dataset that serves as the read model
  * for queries and search, leaving the dataset of approved assertions untouched. A single inference
- * model is kept for the lifetime of the service: {@link #recomputeInference()} builds it from an
- * in-memory copy of the assertions — once, at startup — and {@link #addInference(Model)} extends it
- * incrementally as branches are approved, so additive ingestion never recomputes the closure from
- * scratch. Either way only the difference to the current inference graph is applied, as an RDF
- * patch, so the full-text index wrapped around the inference dataset only ever indexes statements
- * that are genuinely new.
+ * model is kept for the lifetime of the service. {@link #addInference(Model)} extends it
+ * incrementally as branches are approved, so a single {@link
+ * ai.chatur.cortex.CortexBranches#approve approve} never recomputes the closure from scratch.
+ * {@link #recomputeInference()} rebuilds it from a fresh in-memory copy of the assertions instead:
+ * it runs once at application startup, on every {@link
+ * ai.chatur.cortex.CortexArchive#importAssertions importAssertions} — a restored archive can add or
+ * remove statements {@code addInference} cannot account for — and as the fallback inside {@code
+ * approve} if the incremental update throws. Either way only the difference to the current
+ * inference graph is applied, as an RDF patch, so the full-text index wrapped around the inference
+ * dataset only ever indexes statements that are genuinely new.
  */
 public class InferenceService {
 
@@ -95,26 +98,9 @@ public class InferenceService {
           stale.add(current.difference(inferred));
           novel.add(inferred.difference(current));
         });
-    RDFChangesCollector collector = new RDFChangesCollector();
-    collector.txnBegin();
-    stale.getGraph().stream()
-        .forEach(
-            triple ->
-                collector.delete(
-                    Quad.defaultGraphIRI,
-                    triple.getSubject(),
-                    triple.getPredicate(),
-                    triple.getObject()));
-    novel.getGraph().stream()
-        .forEach(
-            triple ->
-                collector.add(
-                    Quad.defaultGraphIRI,
-                    triple.getSubject(),
-                    triple.getPredicate(),
-                    triple.getObject()));
-    collector.txnCommit();
-    RDFPatchOps.applyChange(inferences.asDatasetGraph(), collector.getRDFPatch());
+    DatasetPatch.apply(
+        inferences,
+        patch -> patch.deleteAll(Quad.defaultGraphIRI, stale).addAll(Quad.defaultGraphIRI, novel));
     log.info(
         "{} inference in {} ms: {} novel and {} stale statements",
         action,

@@ -44,3 +44,6 @@ out/
 
 ### Claude Code ###
 .claude
+
+### macOS ###
+.DS_Store

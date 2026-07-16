@@ -7,7 +7,7 @@ Generate cortex's three foundational schema files from natural-language ontology
 This Claude Code plugin provides the **`generate-cortex-resources`** skill, which guides you through authoring a complete, mutually-consistent set of cortex schema files:
 
 - **`ontology.ttl`** — OWL 2 DL ontology (classes, properties, hierarchies)
-- **`shapes.ttl`** — SHACL shapes for strict pre-inference validation (closed-world, cardinality, type constraints)
+- **`ontology.shapes`** — SHACL shapes for strict pre-inference validation (closed-world, cardinality, type constraints)
 - **`ontology.rules`** — Jena generic-reasoner rules for controlled inference (including subclass/subproperty propagation and specific derived-class rules)
 
 ## Why Use It
@@ -49,7 +49,7 @@ The skill will ask clarifying questions, scaffold the three files, and validate 
 
 ### Closed-World Validation
 
-SHACL validation runs **before inference** at ingest time (`IngestService.validate`). This design allows the `sh:in` type allow-list to be the enforcement mechanism for "never assert inferred classes directly":
+SHACL validation runs **before inference** at ingest time (`LintService.validate`, invoked as part of ingestion). This design allows the `sh:in` type allow-list to be the enforcement mechanism for "never assert inferred classes directly":
 
 - Every assertable (non-inferred) class is listed in `AssertionShape`'s `sh:in`.
 - Every inferred-only class is **omitted** from that list.
@@ -72,13 +72,9 @@ The generated `ontology.rules` file includes:
 
 ### Namespace Conventions
 
-All cortex systems use three fixed URI schemes:
+Nothing in Cortex enforces or expects any particular namespace for your ontology, shapes, or instances — they are entirely yours to choose. (The repository's own example app, for instance, uses `example://ontology#` and `example://kb/`.) Pick namespaces that make sense for your application; HTTP URLs, URNs, and any other scheme are all fine.
 
-- **Ontology/schema**: `cortex://ontology/` — classes and properties
-- **Shapes**: `cortex://shapes/` — SHACL node shapes
-- **Instances**: `cortex://` — asserted instance IRIs (flat, pattern `^cortex://[^/?#]+$`)
-
-No HTTP URLs or arbitrary URN namespaces are used in cortex schemas.
+**The one namespace that is off-limits is `cortex://`.** Cortex reserves it internally for its own bookkeeping resources — `cortex://provenance` (the provenance graph) and `cortex://branch-<uuid>` (each pending branch) — which are not part of your ontology or data. Do not mint instance, class, or shape IRIs under `cortex://`: a user-chosen name could collide with a reserved resource (an instance literally named `provenance` would collide with `cortex://provenance`) and would be confusing regardless.
 
 ## Testing
 
@@ -90,7 +86,7 @@ After generating resources with the skill, verify them by running your cortex Sp
 
 This boots the Spring context, which:
 1. Parses `ontology.ttl` via Jena OntAPI
-2. Parses `shapes.ttl` via Jena SHACL
+2. Parses `ontology.shapes` via Jena SHACL
 3. Loads `ontology.rules` via Jena's generic rule reasoner
 
 If any file has syntax or consistency errors, the context load fails with a clear error message.

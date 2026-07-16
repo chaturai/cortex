@@ -4,6 +4,9 @@ apache-jena = "6.1.0"
 spring-boot = "4.0.7"
 spring-ai = "2.0.0"
 slf4j = "2.0.17"
+assertj = "3.27.7"
+spotless-plugin-gradle = "8.8.0"
+gradle-maven-publish-plugin = "0.33.0"
 
 [libraries]
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
@@ -11,3 +14,9 @@ slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 jena-bom = { module = "org.apache.jena:jena-bom", version.ref = "apache-jena" }
 spring-boot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
 spring-ai-bom = { module = "org.springframework.ai:spring-ai-bom", version.ref = "spring-ai" }
+assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj" }
+spotless-plugin-gradle = { module = "com.diffplug.spotless:spotless-plugin-gradle", version.ref = "spotless-plugin-gradle" }
+gradle-maven-publish-plugin = { module = "com.vanniktech:gradle-maven-publish-plugin", version.ref = "gradle-maven-publish-plugin" }
+
+[plugins]
+spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }

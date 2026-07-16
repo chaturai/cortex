@@ -1,10 +1,9 @@
 package ai.chatur.cortex.core.lint;
 
 import ai.chatur.cortex.LintResult;
+import ai.chatur.cortex.core.jena.Rdf;
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.io.StringReader;
-import java.io.StringWriter;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import org.apache.jena.ontapi.model.OntModel;
@@ -82,14 +81,27 @@ public class LintService {
    *
    * @param validationReport the report to render
    * @return the printed report, or {@code null} if the report conforms
-   * @throws IOException if the report cannot be rendered
    */
-  public String getErrors(ValidationReport validationReport) throws IOException {
+  public String getErrors(ValidationReport validationReport) {
     if (validationReport.conforms()) return null;
-    try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
-      ShLib.printReport(os, validationReport);
-      return os.toString();
-    }
+    return printReport(validationReport);
+  }
+
+  /**
+   * Renders the report to an in-memory buffer.
+   *
+   * <p>{@link ByteArrayOutputStream#close()} is a no-op that only declares {@code IOException} for
+   * interface compatibility with {@link java.io.OutputStream} — it cannot actually throw, so this
+   * deliberately does not close it (nor wrap the call in a try-with-resources, which would still
+   * force a caller-visible checked exception with nothing behind it to guard against).
+   *
+   * @param validationReport the report to render
+   * @return the printed report
+   */
+  private static String printReport(ValidationReport validationReport) {
+    ByteArrayOutputStream os = new ByteArrayOutputStream();
+    ShLib.printReport(os, validationReport);
+    return os.toString();
   }
 
   Set<String> getDeclarations(Model ontModel, Set<Resource> types) {
@@ -113,9 +125,8 @@ public class LintService {
    * @param ttl RDF assertions in Turtle syntax
    * @return the outcome, carrying either the validated assertions in Turtle syntax or the lint
    *     violations
-   * @throws IOException if the validated assertions cannot be serialized
    */
-  public LintResult lint(String ttl) throws IOException {
+  public LintResult lint(String ttl) {
     Model model = ModelFactory.createDefaultModel();
     try {
       RDFDataMgr.read(model, new StringReader(ttl), null, Lang.TTL);
@@ -145,10 +156,6 @@ public class LintService {
       log.warn("Rejected lint of {} triples: {}", model.size(), errors);
       return new LintResult(false, null, errors);
     }
-    StringWriter writer = new StringWriter();
-    try (writer) {
-      RDFDataMgr.write(writer, model, Lang.TTL);
-    }
-    return new LintResult(true, writer.toString(), null);
+    return new LintResult(true, Rdf.write(model, Lang.TTL), null);
   }
 }

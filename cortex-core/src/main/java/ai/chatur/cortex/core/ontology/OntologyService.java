@@ -1,16 +1,14 @@
 package ai.chatur.cortex.core.ontology;
 
 import ai.chatur.cortex.OntologyClass;
-import ai.chatur.cortex.Term;
-import java.io.IOException;
-import java.io.StringWriter;
+import ai.chatur.cortex.core.Terms;
+import ai.chatur.cortex.core.jena.Rdf;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.apache.jena.ontapi.model.OntClass;
 import org.apache.jena.ontapi.model.OntModel;
 import org.apache.jena.riot.Lang;
-import org.apache.jena.riot.RDFDataMgr;
 
 /** Provides access to the ontology the knowledge graph is built on. */
 public class OntologyService {
@@ -30,14 +28,9 @@ public class OntologyService {
    * Returns the ontology.
    *
    * @return the ontology serialized in Turtle syntax
-   * @throws IOException if the ontology cannot be serialized
    */
-  public String getOntology() throws IOException {
-    StringWriter writer = new StringWriter();
-    try (writer) {
-      RDFDataMgr.write(writer, ontModel, Lang.TTL);
-    }
-    return writer.toString();
+  public String getOntology() {
+    return Rdf.write(ontModel, Lang.TTL);
   }
 
   /**
@@ -63,11 +56,6 @@ public class OntologyService {
             .filter(subClass -> !path.contains(subClass))
             .map(subClass -> getOntologyClass(subClass, path))
             .toList();
-    return new OntologyClass(
-        new Term(
-            ontModel.getNsURIPrefix(ontClass.getNameSpace()),
-            ontClass.getLocalName(),
-            ontClass.getURI()),
-        subClasses);
+    return new OntologyClass(Terms.of(ontClass, ontModel), subClasses);
   }
 }

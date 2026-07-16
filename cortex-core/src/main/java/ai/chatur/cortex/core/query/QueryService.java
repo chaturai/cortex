@@ -4,7 +4,9 @@ import ai.chatur.cortex.ProvenancedStatement;
 import ai.chatur.cortex.SearchResult;
 import ai.chatur.cortex.Term;
 import ai.chatur.cortex.core.CortexNamespace;
-import java.io.StringWriter;
+import ai.chatur.cortex.core.Terms;
+import ai.chatur.cortex.core.jena.Rdf;
+import ai.chatur.cortex.core.jena.Sparql;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -15,7 +17,6 @@ import org.apache.jena.ontapi.model.OntClass;
 import org.apache.jena.ontapi.model.OntModel;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.query.Query;
-import org.apache.jena.query.QueryExecution;
 import org.apache.jena.query.QueryFactory;
 import org.apache.jena.query.ResultSet;
 import org.apache.jena.query.ResultSetFormatter;
@@ -25,8 +26,6 @@ import org.apache.jena.rdf.model.RDFNode;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.rdf.model.ResourceFactory;
 import org.apache.jena.riot.Lang;
-import org.apache.jena.riot.RDFDataMgr;
-import org.apache.jena.system.Txn;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,7 +75,6 @@ public class QueryService {
    * @return the instance identifiers sorted alphabetically, empty if the class is unknown
    */
   public List<Term> getInstances(String type) {
-    System.out.println(type);
     return ontModel
         .classes()
         .filter(ontClass -> ontClass.getURI().equals(type))
@@ -93,32 +91,16 @@ public class QueryService {
     Query query =
         QueryFactory.create(
             "SELECT DISTINCT ?instance WHERE { ?instance a <" + ontClass.getURI() + "> }");
-    return Txn.calculateRead(
-        inferences,
-        () -> {
-          QueryExecution queryExecution = getQueryExecution(query);
-          try (queryExecution) {
-            List<Term> instances = new ArrayList<>();
-            queryExecution
-                .execSelect()
-                .forEachRemaining(
-                    solution -> {
-                      Resource instance = solution.getResource("instance");
-                      if (instance.isURIResource()) {
-                        instances.add(
-                            new Term(
-                                ontModel.getNsURIPrefix(instance.getNameSpace()),
-                                instance.getLocalName(),
-                                instance.getURI()));
-                      }
-                    });
-            return instances;
-          }
-        });
-  }
-
-  QueryExecution getQueryExecution(Query query) {
-    return QueryExecution.dataset(inferences).query(query).build();
+    List<Term> instances = new ArrayList<>();
+    Sparql.on(inferences, query)
+        .forEachSolution(
+            solution -> {
+              Resource instance = solution.getResource("instance");
+              if (instance.isURIResource()) {
+                instances.add(Terms.of(instance, ontModel));
+              }
+            });
+    return instances;
   }
 
   private static final Query DESCRIBE_QUERY =
@@ -160,71 +142,35 @@ public class QueryService {
   public List<ProvenancedStatement> describe(String id) {
     Resource subject = ResourceFactory.createResource(id);
     Map<StatementKey, String> created = getCreated(subject);
-    return Txn.calculateRead(
-        inferences,
-        () -> {
-          QueryExecution queryExecution =
-              QueryExecution.dataset(inferences)
-                  .query(DESCRIBE_QUERY)
-                  .substitution("subject", subject)
-                  .build();
-          try (queryExecution) {
-            List<ProvenancedStatement> statements = new ArrayList<>();
-            queryExecution
-                .execSelect()
-                .forEachRemaining(
-                    solution -> {
-                      RDFNode predicate = solution.get("predicate");
-                      RDFNode object = solution.get("object");
-                      statements.add(
-                          new ProvenancedStatement(
-                              term(predicate),
-                              term(object),
-                              created.get(new StatementKey(predicate, object))));
-                    });
-            return statements;
-          }
-        });
+    List<ProvenancedStatement> statements = new ArrayList<>();
+    Sparql.on(inferences, DESCRIBE_QUERY)
+        .bind("subject", subject)
+        .forEachSolution(
+            solution -> {
+              RDFNode predicate = solution.get("predicate");
+              RDFNode object = solution.get("object");
+              statements.add(
+                  new ProvenancedStatement(
+                      Terms.of(predicate, ontModel),
+                      Terms.of(object, ontModel),
+                      created.get(new StatementKey(predicate, object))));
+            });
+    return statements;
   }
 
   Map<StatementKey, String> getCreated(Resource subject) {
-    return Txn.calculateRead(
-        assertions,
-        () -> {
-          QueryExecution queryExecution =
-              QueryExecution.dataset(assertions)
-                  .query(PROVENANCE_QUERY)
-                  .substitution("subject", subject)
-                  .build();
-          try (queryExecution) {
-            Map<StatementKey, String> created = new HashMap<>();
-            queryExecution
-                .execSelect()
-                .forEachRemaining(
-                    solution ->
-                        created.put(
-                            new StatementKey(solution.get("predicate"), solution.get("object")),
-                            solution.getLiteral("created").getLexicalForm()));
-            return created;
-          }
-        });
+    Map<StatementKey, String> created = new HashMap<>();
+    Sparql.on(assertions, PROVENANCE_QUERY)
+        .bind("subject", subject)
+        .forEachSolution(
+            solution ->
+                created.put(
+                    new StatementKey(solution.get("predicate"), solution.get("object")),
+                    solution.getLiteral("created").getLexicalForm()));
+    return created;
   }
 
   private record StatementKey(RDFNode predicate, RDFNode object) {}
-
-  Term term(RDFNode node) {
-    if (node.isURIResource()) {
-      String uri = node.asResource().getURI();
-      String shortForm = ontModel.shortForm(uri);
-      if (!shortForm.equals(uri)) {
-        int colon = shortForm.indexOf(':');
-        return new Term(shortForm.substring(0, colon), shortForm.substring(colon + 1), uri);
-      }
-      return new Term(null, uri, uri);
-    }
-    if (node.isLiteral()) return new Term(null, node.asLiteral().getLexicalForm(), null);
-    return new Term(null, node.toString(), null);
-  }
 
   /**
    * Runs a SPARQL query against the knowledge graph.
@@ -235,28 +181,23 @@ public class QueryService {
    */
   public String query(String sparql) {
     Query query = QueryFactory.create(sparql);
-    return Txn.calculateRead(
-        inferences,
-        () -> {
-          QueryExecution queryExecution = getQueryExecution(query);
-          try (queryExecution) {
-            if (query.isSelectType()) {
-              ResultSet resultSet = queryExecution.execSelect();
-              return ResultSetFormatter.asText(resultSet);
-            }
-            if (query.isAskType()) {
-              return String.valueOf(queryExecution.execAsk());
-            }
-            if (query.isDescribeType()) {
-              Model model = queryExecution.execDescribe();
-              model.setNsPrefixes(ontModel.getNsPrefixMap());
-              StringWriter writer = new StringWriter();
-              RDFDataMgr.write(writer, model, Lang.TTL);
-              return writer.toString();
-            }
-            return null;
-          }
-        });
+    return Sparql.on(inferences, query)
+        .execute(
+            queryExecution -> {
+              if (query.isSelectType()) {
+                ResultSet resultSet = queryExecution.execSelect();
+                return ResultSetFormatter.asText(resultSet);
+              }
+              if (query.isAskType()) {
+                return String.valueOf(queryExecution.execAsk());
+              }
+              if (query.isDescribeType()) {
+                Model model = queryExecution.execDescribe();
+                model.setNsPrefixes(ontModel.getNsPrefixMap());
+                return Rdf.write(model, Lang.TTL);
+              }
+              return null;
+            });
   }
 
   /**
@@ -270,19 +211,9 @@ public class QueryService {
    */
   public String search(String text) {
     Literal literal = ResourceFactory.createPlainLiteral(getFuzzyQuery(text));
-    return Txn.calculateRead(
-        inferences,
-        () -> {
-          QueryExecution queryExecution =
-              QueryExecution.dataset(inferences)
-                  .query(SEARCH_QUERY)
-                  .substitution("text", literal)
-                  .build();
-          try (queryExecution) {
-            ResultSet resultSet = queryExecution.execSelect();
-            return ResultSetFormatter.asText(resultSet);
-          }
-        });
+    return Sparql.on(inferences, SEARCH_QUERY)
+        .bind("text", literal)
+        .execute(queryExecution -> ResultSetFormatter.asText(queryExecution.execSelect()));
   }
 
   /**
@@ -296,36 +227,22 @@ public class QueryService {
    */
   public List<SearchResult> searchSubjects(String text) {
     Literal literal = ResourceFactory.createPlainLiteral(getFuzzyQuery(text));
-    return Txn.calculateRead(
-        inferences,
-        () -> {
-          QueryExecution queryExecution =
-              QueryExecution.dataset(inferences)
-                  .query(SEARCH_QUERY)
-                  .substitution("text", literal)
-                  .build();
-          try (queryExecution) {
-            List<SearchResult> results = new ArrayList<>();
-            queryExecution
-                .execSelect()
-                .forEachRemaining(
-                    solution -> {
-                      Resource subject = solution.getResource("subject");
-                      if (subject.isURIResource()) {
-                        results.add(
-                            new SearchResult(
-                                new Term(
-                                    ontModel.getNsURIPrefix(subject.getNameSpace()),
-                                    subject.getLocalName(),
-                                    subject.getURI()),
-                                solution.contains("match")
-                                    ? solution.getLiteral("match").getLexicalForm()
-                                    : null));
-                      }
-                    });
-            return results;
-          }
-        });
+    List<SearchResult> results = new ArrayList<>();
+    Sparql.on(inferences, SEARCH_QUERY)
+        .bind("text", literal)
+        .forEachSolution(
+            solution -> {
+              Resource subject = solution.getResource("subject");
+              if (subject.isURIResource()) {
+                results.add(
+                    new SearchResult(
+                        Terms.of(subject, ontModel),
+                        solution.contains("match")
+                            ? solution.getLiteral("match").getLexicalForm()
+                            : null));
+              }
+            });
+    return results;
   }
 
   String getFuzzyQuery(String text) {

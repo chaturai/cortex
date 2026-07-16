@@ -1,8 +1,0 @@
-@prefix : <example://ontology#> .
-@prefix kb: <example://kb/> .
-
-kb:ValidTask :assignedTo kb:ValidAgent .
-
-kb:InvalidTask a :Task .
-
-kb:InvalidNode a :InvalidClass .
