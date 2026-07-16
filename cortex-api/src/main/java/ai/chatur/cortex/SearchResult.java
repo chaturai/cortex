@@ -6,4 +6,4 @@ package ai.chatur.cortex;
  * @param subject the identifier of the matching resource within the Cortex namespace
  * @param match the indexed literal that matched the search text
  */
-public record SearchResult(String subject, String match) {}
+public record SearchResult(Term subject, String match) {}

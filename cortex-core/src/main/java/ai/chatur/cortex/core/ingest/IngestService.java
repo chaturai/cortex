@@ -56,8 +56,10 @@ import org.slf4j.LoggerFactory;
  * with the approved assertions, trimmed of triples already approved, and staged on a branch — a
  * named graph within the assertions dataset. Every branch carries a {@link PROV#Activity provenance
  * activity} recording the ingestion. Reviewers may delete or edit staged statements. Approving a
- * branch reifies each staged statement, links it to the activity, and merges everything into the
- * default graph; rejecting a branch discards it.
+ * branch merges the staged assertions into the default graph and records their provenance — the
+ * reification of each statement linked to the activity — in the {@link CortexNamespace#PROVENANCE
+ * provenance graph}, keeping the default graph free of provenance so inference only ever sees data
+ * triples; rejecting a branch discards it.
  */
 public class IngestService {
 
@@ -163,6 +165,8 @@ public class IngestService {
   /**
    * Returns the names of all branches pending review.
    *
+   * <p>The {@link CortexNamespace#PROVENANCE provenance graph} is not a branch and is never listed.
+   *
    * @return the branch names, empty if nothing is pending
    */
   public List<String> listBranches() {
@@ -174,6 +178,7 @@ public class IngestService {
                 .listModelNames()
                 .forEachRemaining(
                     (node) -> {
+                      if (CortexNamespace.PROVENANCE.equals(node)) return;
                       branches.add(node.getLocalName());
                     }));
     return branches;
@@ -182,11 +187,16 @@ public class IngestService {
   /**
    * Reports whether a branch with the given name is pending review.
    *
+   * <p>The {@link CortexNamespace#PROVENANCE provenance graph} is not a branch: it is never
+   * reported here, which also shields it from the mutating branch operations that all check this
+   * method first.
+   *
    * @param branch the branch name
    * @return {@code true} if the branch exists
    */
   public boolean hasBranch(String branch) {
     Resource namedModel = CortexNamespace.getResource(branch);
+    if (CortexNamespace.PROVENANCE.equals(namedModel)) return false;
     return Txn.calculateRead(assertions, () -> assertions.containsNamedModel(namedModel));
   }
 
@@ -429,62 +439,81 @@ public class IngestService {
 
   /**
    * Merges the assertions staged on the given branch into the default graph, closing the {@link
-   * PROV#Activity provenance activity} of the ingestion and linking every merged statement to it,
-   * and deletes the branch.
+   * PROV#Activity provenance activity} of the ingestion and recording the reification of every
+   * merged statement, linked to the activity, in the {@link CortexNamespace#PROVENANCE provenance
+   * graph}, and deletes the branch.
    *
    * <p>Staged triples that were approved through another branch in the meantime are skipped, so a
    * statement is never merged or reified twice.
    *
    * @param branch the branch name
-   * @return {@code true} if the branch existed and was merged
+   * @return the newly approved assertions — empty if every staged triple was approved through
+   *     another branch in the meantime — or {@code null} if the branch does not exist
    */
-  public boolean approve(String branch) {
+  public Model approve(String branch) {
     if (!hasBranch(branch)) {
       log.warn("Cannot approve unknown branch {}", branch);
-      return false;
+      return null;
     }
-    RDFChangesCollector collector = new RDFChangesCollector();
     Resource namedModel = CortexNamespace.getResource(branch);
-    collector.txnBegin();
+    Model data = ModelFactory.createDefaultModel();
+    Model provenance = ModelFactory.createDefaultModel();
     Txn.executeRead(
         assertions,
-        () ->
-            getProvenanced(
-                    assertions.getNamedModel(namedModel).difference(assertions.getDefaultModel()),
-                    namedModel)
-                .getGraph()
-                .stream()
-                .forEach(
-                    triple -> {
-                      collector.add(
-                          Quad.defaultGraphIRI,
-                          triple.getSubject(),
-                          triple.getPredicate(),
-                          triple.getObject());
-                    }));
+        () -> {
+          Model diff =
+              assertions.getNamedModel(namedModel).difference(assertions.getDefaultModel());
+          data.add(getData(diff, namedModel));
+          provenance.add(getProvenance(diff, data, namedModel));
+        });
+    RDFChangesCollector collector = new RDFChangesCollector();
+    collector.txnBegin();
+    data.getGraph().stream()
+        .forEach(
+            triple ->
+                collector.add(
+                    Quad.defaultGraphIRI,
+                    triple.getSubject(),
+                    triple.getPredicate(),
+                    triple.getObject()));
+    provenance.getGraph().stream()
+        .forEach(
+            triple ->
+                collector.add(
+                    CortexNamespace.PROVENANCE.asNode(),
+                    triple.getSubject(),
+                    triple.getPredicate(),
+                    triple.getObject()));
     collector.txnCommit();
     RDFPatch patch = collector.getRDFPatch();
     RDFPatchOps.applyChange(assertions.asDatasetGraph(), patch);
     Txn.executeWrite(assertions, () -> assertions.removeNamedModel(namedModel));
     log.info("Approved branch {}", branch);
-    return true;
+    return data;
   }
 
-  Model getProvenanced(Model model, Resource activity) {
-    Model provModel = ModelFactory.createDefaultModel();
-    Literal now = provModel.createTypedLiteral(Calendar.getInstance());
-    provModel.add(activity, PROV.endedAtTime, now);
-    model
-        .listStatements()
+  Model getData(Model diff, Resource activity) {
+    Model data = ModelFactory.createDefaultModel();
+    diff.listStatements()
         .forEach(
             statement -> {
-              provModel.add(statement);
-              if (!activity.equals(statement.getSubject())) {
-                Resource quoted = provModel.createReifier(statement);
-                provModel.add(quoted, PROV.wasGeneratedBy, activity);
-              }
+              if (!activity.equals(statement.getSubject())) data.add(statement);
             });
-    return provModel;
+    return data;
+  }
+
+  Model getProvenance(Model diff, Model data, Resource activity) {
+    Model provenance = ModelFactory.createDefaultModel();
+    Literal now = provenance.createTypedLiteral(Calendar.getInstance());
+    provenance.add(activity, PROV.endedAtTime, now);
+    diff.listStatements(activity, null, (RDFNode) null).forEach(provenance::add);
+    data.listStatements()
+        .forEach(
+            statement -> {
+              Resource reifier = provenance.createReifier(statement);
+              provenance.add(reifier, PROV.wasGeneratedBy, activity);
+            });
+    return provenance;
   }
 
   /**

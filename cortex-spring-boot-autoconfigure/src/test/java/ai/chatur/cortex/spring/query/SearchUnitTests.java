@@ -20,13 +20,14 @@ public class SearchUnitTests {
   static final String TTL =
 """
       @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-      @prefix o: <cortex://ontology/> .
-      @prefix : <cortex://assertions/> .
 
-      :SearchAgent a o:Agent .
+      @prefix : <example://ontology#> .
+      @prefix kb: <example://kb/> .
 
-      :SearchTask a o:Task ;
-          o:assignedTo :SearchAgent ;
+      kb:SearchAgent a :Agent .
+
+      kb:SearchTask a :Task ;
+          :assignedTo kb:SearchAgent ;
           rdfs:label "quarterly report" .
 """;
 
@@ -62,7 +63,9 @@ public class SearchUnitTests {
     cortex.recomputeInference();
 
     List<SearchResult> results = cortex.searchSubjects("quarterly");
-    assert (results.stream().filter(result -> result.subject().contains("SearchTask")).count()
+    assert (results.stream()
+            .filter(result -> result.subject().localName().equals("SearchTask"))
+            .count()
         == 1);
   }
 
@@ -74,7 +77,7 @@ public class SearchUnitTests {
     assert (!results.isEmpty());
     SearchResult hit =
         results.stream()
-            .filter(result -> result.subject().contains("SearchTask"))
+            .filter(result -> result.subject().localName().equals("SearchTask"))
             .findFirst()
             .orElseThrow();
     assert (hit.match() != null);

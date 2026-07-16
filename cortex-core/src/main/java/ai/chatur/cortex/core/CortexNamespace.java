@@ -10,6 +10,9 @@ public final class CortexNamespace {
   /** The URI namespace of all resources managed by Cortex. */
   public static final String NS = "cortex://";
 
+  /** The named graph holding per-statement provenance within the assertions dataset. */
+  public static final Resource PROVENANCE = ResourceFactory.createResource(NS + "provenance");
+
   private CortexNamespace() {}
 
   /**

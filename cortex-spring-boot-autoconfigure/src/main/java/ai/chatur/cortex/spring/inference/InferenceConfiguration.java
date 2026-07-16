@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.apache.jena.ontapi.model.OntModel;
 import org.apache.jena.query.Dataset;
+import org.apache.jena.reasoner.Reasoner;
 import org.apache.jena.reasoner.rulesys.GenericRuleReasoner;
 import org.apache.jena.reasoner.rulesys.Rule;
 import org.slf4j.Logger;
@@ -19,9 +20,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
 
 /**
- * Configures rule-based inference: a {@link GenericRuleReasoner} loaded from the configured rules
- * files, the {@link InferenceService} that applies the OWL-Full closure of the ontology followed by
- * those rules, and an initializer that computes inference on startup.
+ * Configures rule-based inference: a {@link GenericRuleReasoner} running Jena's OWL micro rules
+ * plus the configured rules files and bound to the ontology as schema, the {@link InferenceService}
+ * that applies it, and an initializer that computes inference on startup.
  */
 @Configuration
 public class InferenceConfiguration {
@@ -49,7 +50,8 @@ public class InferenceConfiguration {
       @Qualifier("inferences") Dataset inferences,
       GenericRuleReasoner genericRuleReasoner,
       OntModel ontModel) {
-    return new InferenceService(assertions, inferences, genericRuleReasoner, ontModel);
+    Reasoner reasoner = genericRuleReasoner.bindSchema(ontModel);
+    return new InferenceService(assertions, inferences, reasoner);
   }
 
   @Bean

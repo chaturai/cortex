@@ -8,6 +8,7 @@ import ai.chatur.cortex.core.query.QueryService;
 import ai.chatur.cortex.core.stats.StatsService;
 import java.io.IOException;
 import java.util.List;
+import org.apache.jena.rdf.model.Model;
 
 /**
  * {@link Cortex} implementation backed by <a href="https://jena.apache.org">Apache Jena</a>.
@@ -16,7 +17,8 @@ import java.util.List;
  * {@link LintService} for linting assertions against the ontology, {@link IngestService} for
  * validated, branch-based ingestion with provenance, {@link InferenceService} for rule-based
  * inference, {@link QueryService} for SPARQL queries and full-text search, and {@link StatsService}
- * for statistics. Approving a branch automatically recomputes inference.
+ * for statistics. Approving a branch extends the inference closure incrementally with the newly
+ * approved statements.
  */
 public class JenaCortex implements Cortex {
 
@@ -94,7 +96,8 @@ public class JenaCortex implements Cortex {
 
   @Override
   public void approve(String branch) {
-    if (ingestService.approve(branch)) inferenceService.recomputeInference();
+    Model novel = ingestService.approve(branch);
+    if (novel != null) inferenceService.addInference(novel);
   }
 
   @Override
@@ -124,7 +127,7 @@ public class JenaCortex implements Cortex {
   }
 
   @Override
-  public List<String> getInstances(String type) {
+  public List<Term> getInstances(String type) {
     return queryService.getInstances(type);
   }
 

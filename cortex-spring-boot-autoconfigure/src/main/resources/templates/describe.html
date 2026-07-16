@@ -8,8 +8,20 @@
         <h1 th:text="${subject}"></h1>
         <ul class="statement-list" th:if="${!statements.isEmpty()}">
           <li class="statement-item" th:each="statement : ${statements}" th:classappend="${statement.created == null ? 'statement-inferred' : 'statement-asserted'}">
-            <code class="linkify statement-predicate" th:text="${statement.predicate}"></code>
-            <code class="linkify statement-object" th:text="${statement.object}"></code>
+            <code class="statement-predicate">
+              <a
+                class="code-link"
+                th:href="@{/describe(uri=${statement.predicate.uri})}"
+                th:text="${statement.predicate.prefix != null ? statement.predicate.prefix + ':' + statement.predicate.localName : statement.predicate.localName}"></a>
+            </code>
+            <code class="statement-object">
+              <a
+                class="code-link"
+                th:if="${statement.object.uri != null}"
+                th:href="@{/describe(uri=${statement.object.uri})}"
+                th:text="${statement.object.prefix != null ? statement.object.prefix + ':' + statement.object.localName : statement.object.localName}"></a>
+              <span th:unless="${statement.object.uri != null}" th:text="${statement.object.localName}"></span>
+            </code>
             <span
               class="statement-created"
               th:if="${statement.created != null}"
@@ -22,6 +34,5 @@
         </p>
       </div>
     </main>
-    <script th:src="@{/js/cortex.js}"></script>
   </body>
 </html>

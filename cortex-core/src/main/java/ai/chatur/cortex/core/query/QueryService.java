@@ -2,12 +2,14 @@ package ai.chatur.cortex.core.query;
 
 import ai.chatur.cortex.ProvenancedStatement;
 import ai.chatur.cortex.SearchResult;
+import ai.chatur.cortex.Term;
 import ai.chatur.cortex.core.CortexNamespace;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import org.apache.jena.ontapi.model.OntClass;
 import org.apache.jena.ontapi.model.OntModel;
@@ -33,7 +35,9 @@ import org.slf4j.LoggerFactory;
  * Answers questions about the knowledge graph.
  *
  * <p>All lookups run against the inference dataset, so results include both approved assertions and
- * statements derived from them by the reasoner.
+ * statements derived from them by the reasoner. Provenance, which lives in the {@link
+ * CortexNamespace#PROVENANCE provenance graph} of the assertions dataset and is excluded from
+ * inference, is looked up there.
  */
 public class QueryService {
 
@@ -49,16 +53,19 @@ public class QueryService {
           """);
 
   private final Dataset inferences;
+  private final Dataset assertions;
   private final OntModel ontModel;
 
   /**
    * Creates the service.
    *
    * @param inferences the dataset holding the assertions enriched by inference
+   * @param assertions the dataset holding the approved assertions and their provenance
    * @param ontModel the ontology model, used to resolve classes and shorten URIs
    */
-  public QueryService(Dataset inferences, OntModel ontModel) {
+  public QueryService(Dataset inferences, Dataset assertions, OntModel ontModel) {
     this.inferences = inferences;
+    this.assertions = assertions;
     this.ontModel = ontModel;
   }
 
@@ -68,10 +75,11 @@ public class QueryService {
    * @param type the local name of the ontology class
    * @return the instance identifiers sorted alphabetically, empty if the class is unknown
    */
-  public List<String> getInstances(String type) {
+  public List<Term> getInstances(String type) {
+    System.out.println(type);
     return ontModel
         .classes()
-        .filter(ontClass -> ontClass.getLocalName().equals(type))
+        .filter(ontClass -> ontClass.getURI().equals(type))
         .findFirst()
         .map(this::listInstances)
         .orElseGet(
@@ -81,7 +89,7 @@ public class QueryService {
             });
   }
 
-  List<String> listInstances(OntClass ontClass) {
+  List<Term> listInstances(OntClass ontClass) {
     Query query =
         QueryFactory.create(
             "SELECT DISTINCT ?instance WHERE { ?instance a <" + ontClass.getURI() + "> }");
@@ -90,18 +98,20 @@ public class QueryService {
         () -> {
           QueryExecution queryExecution = getQueryExecution(query);
           try (queryExecution) {
-            List<String> instances = new ArrayList<>();
+            List<Term> instances = new ArrayList<>();
             queryExecution
                 .execSelect()
                 .forEachRemaining(
                     solution -> {
                       Resource instance = solution.getResource("instance");
-                      if (instance.isURIResource()
-                          && instance.getURI().startsWith(CortexNamespace.NS)) {
-                        instances.add(instance.getURI().substring(CortexNamespace.NS.length()));
+                      if (instance.isURIResource()) {
+                        instances.add(
+                            new Term(
+                                ontModel.getNsURIPrefix(instance.getNameSpace()),
+                                instance.getLocalName(),
+                                instance.getURI()));
                       }
                     });
-            instances.sort(Comparator.naturalOrder());
             return instances;
           }
         });
@@ -111,42 +121,51 @@ public class QueryService {
     return QueryExecution.dataset(inferences).query(query).build();
   }
 
+  private static final Query DESCRIBE_QUERY =
+      QueryFactory.create(
+          """
+          SELECT ?predicate ?object
+          WHERE { ?subject ?predicate ?object }
+          ORDER BY ?predicate ?object
+          """);
+
+  private static final Query PROVENANCE_QUERY =
+      QueryFactory.create(
+          """
+          PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+          PREFIX prov: <http://www.w3.org/ns/prov#>
+          SELECT ?predicate ?object (MIN(?ended) AS ?created)
+          WHERE {
+            GRAPH <cortex://provenance> {
+              ?reifier rdf:reifies <<( ?subject ?predicate ?object )>> .
+              ?reifier prov:wasGeneratedBy ?activity .
+              ?activity prov:endedAtTime ?ended .
+            }
+          }
+          GROUP BY ?predicate ?object
+          """);
+
   /**
    * Returns everything known about a resource, with the creation timestamp of each statement where
    * provenance was recorded.
    *
-   * <p>Each statement is returned once: statements carrying several provenance records — for
-   * example because they were asserted by more than one ingestion — report their earliest creation
-   * timestamp.
+   * <p>The statements come from the inference dataset; their creation timestamps come from the
+   * {@link CortexNamespace#PROVENANCE provenance graph} of the assertions dataset. Each statement
+   * is returned once: statements carrying several provenance records — for example because they
+   * were asserted by more than one ingestion — report their earliest creation timestamp.
    *
-   * @param id the identifier of the resource within the Cortex namespace
+   * @param id the identifier of the resource within the Cortex namespace, or a full URI
    * @return the statements about the resource, sorted by predicate
    */
   public List<ProvenancedStatement> describe(String id) {
-    Query query =
-        QueryFactory.create(
-            """
-            PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
-            PREFIX prov: <http://www.w3.org/ns/prov#>
-            SELECT ?predicate ?object (MIN(?ended) AS ?created)
-            WHERE {
-              ?subject ?predicate ?object .
-              OPTIONAL {
-                ?reifier rdf:reifies <<( ?subject ?predicate ?object )>> .
-                ?reifier prov:wasGeneratedBy ?activity .
-                ?activity prov:endedAtTime ?ended .
-              }
-            }
-            GROUP BY ?predicate ?object
-            ORDER BY ?predicate ?object
-            """);
-    Resource subject = CortexNamespace.getResource(id);
+    Resource subject = ResourceFactory.createResource(id);
+    Map<StatementKey, String> created = getCreated(subject);
     return Txn.calculateRead(
         inferences,
         () -> {
           QueryExecution queryExecution =
               QueryExecution.dataset(inferences)
-                  .query(query)
+                  .query(DESCRIBE_QUERY)
                   .substitution("subject", subject)
                   .build();
           try (queryExecution) {
@@ -154,23 +173,57 @@ public class QueryService {
             queryExecution
                 .execSelect()
                 .forEachRemaining(
-                    solution ->
-                        statements.add(
-                            new ProvenancedStatement(
-                                shortForm(solution.get("predicate")),
-                                shortForm(solution.get("object")),
-                                solution.contains("created")
-                                    ? solution.getLiteral("created").getLexicalForm()
-                                    : null)));
+                    solution -> {
+                      RDFNode predicate = solution.get("predicate");
+                      RDFNode object = solution.get("object");
+                      statements.add(
+                          new ProvenancedStatement(
+                              term(predicate),
+                              term(object),
+                              created.get(new StatementKey(predicate, object))));
+                    });
             return statements;
           }
         });
   }
 
-  String shortForm(RDFNode node) {
-    if (node.isURIResource()) return ontModel.shortForm(node.asResource().getURI());
-    if (node.isLiteral()) return node.asLiteral().getLexicalForm();
-    return node.toString();
+  Map<StatementKey, String> getCreated(Resource subject) {
+    return Txn.calculateRead(
+        assertions,
+        () -> {
+          QueryExecution queryExecution =
+              QueryExecution.dataset(assertions)
+                  .query(PROVENANCE_QUERY)
+                  .substitution("subject", subject)
+                  .build();
+          try (queryExecution) {
+            Map<StatementKey, String> created = new HashMap<>();
+            queryExecution
+                .execSelect()
+                .forEachRemaining(
+                    solution ->
+                        created.put(
+                            new StatementKey(solution.get("predicate"), solution.get("object")),
+                            solution.getLiteral("created").getLexicalForm()));
+            return created;
+          }
+        });
+  }
+
+  private record StatementKey(RDFNode predicate, RDFNode object) {}
+
+  Term term(RDFNode node) {
+    if (node.isURIResource()) {
+      String uri = node.asResource().getURI();
+      String shortForm = ontModel.shortForm(uri);
+      if (!shortForm.equals(uri)) {
+        int colon = shortForm.indexOf(':');
+        return new Term(shortForm.substring(0, colon), shortForm.substring(colon + 1), uri);
+      }
+      return new Term(null, uri, uri);
+    }
+    if (node.isLiteral()) return new Term(null, node.asLiteral().getLexicalForm(), null);
+    return new Term(null, node.toString(), null);
   }
 
   /**
@@ -258,11 +311,13 @@ public class QueryService {
                 .forEachRemaining(
                     solution -> {
                       Resource subject = solution.getResource("subject");
-                      if (subject.isURIResource()
-                          && subject.getURI().startsWith(CortexNamespace.NS)) {
+                      if (subject.isURIResource()) {
                         results.add(
                             new SearchResult(
-                                subject.getURI().substring(CortexNamespace.NS.length()),
+                                new Term(
+                                    ontModel.getNsURIPrefix(subject.getNameSpace()),
+                                    subject.getLocalName(),
+                                    subject.getURI()),
                                 solution.contains("match")
                                     ? solution.getLiteral("match").getLexicalForm()
                                     : null));

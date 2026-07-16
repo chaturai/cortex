@@ -1,28 +1,28 @@
 package ai.chatur.cortex.core.inference;
 
 import org.apache.jena.query.Dataset;
+import org.apache.jena.rdf.model.InfModel;
 import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.rdfpatch.RDFPatchOps;
 import org.apache.jena.rdfpatch.changes.RDFChangesCollector;
 import org.apache.jena.reasoner.Reasoner;
-import org.apache.jena.reasoner.ReasonerRegistry;
 import org.apache.jena.sparql.core.Quad;
 import org.apache.jena.system.Txn;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Derives new statements from the approved assertions by reasoning in two stages: first an OWL-Full
- * reasoner bound to the ontology computes the OWL closure of the assertions, then the configured
- * rule reasoner is applied to that closure, without rebinding the ontology as schema.
+ * Derives new statements from the approved assertions by applying a {@link Reasoner}.
  *
  * <p>The inference results are materialized into a separate dataset that serves as the read model
- * for queries and search, leaving the dataset of approved assertions untouched. The closure is
- * always recomputed from the assertions and the ontology alone and only the difference to the
- * current inference graph is applied, as an RDF patch, so recomputation is idempotent and the
- * full-text index wrapped around the inference dataset only ever indexes statements that are
- * genuinely new.
+ * for queries and search, leaving the dataset of approved assertions untouched. A single inference
+ * model is kept for the lifetime of the service: {@link #recomputeInference()} builds it from an
+ * in-memory copy of the assertions — once, at startup — and {@link #addInference(Model)} extends it
+ * incrementally as branches are approved, so additive ingestion never recomputes the closure from
+ * scratch. Either way only the difference to the current inference graph is applied, as an RDF
+ * patch, so the full-text index wrapped around the inference dataset only ever indexes statements
+ * that are genuinely new.
  */
 public class InferenceService {
 
@@ -30,39 +30,62 @@ public class InferenceService {
 
   private final Dataset assertions;
   private final Dataset inferences;
-  private final Reasoner owlReasoner;
-  private final Reasoner ruleReasoner;
+  private final Reasoner reasoner;
+
+  private InfModel infModel;
 
   /**
    * Creates the service.
    *
    * @param assertions the dataset holding the approved assertions
    * @param inferences the dataset the inference results are materialized into
-   * @param ruleReasoner the reasoner applying the configured inference rules
-   * @param ontModel the ontology the OWL-Full reasoner is bound to
+   * @param reasoner the reasoner used to derive new statements
    */
-  public InferenceService(
-      Dataset assertions, Dataset inferences, Reasoner ruleReasoner, Model ontModel) {
+  public InferenceService(Dataset assertions, Dataset inferences, Reasoner reasoner) {
     this.assertions = assertions;
     this.inferences = inferences;
-    this.owlReasoner = ReasonerRegistry.getOWLReasoner().bindSchema(ontModel);
-    this.ruleReasoner = ruleReasoner;
+    this.reasoner = reasoner;
   }
 
   /**
    * Recomputes the inference closure from the current assertions and patches the inference dataset
    * with the difference: statements no longer entailed are deleted, novel ones are added, and
    * statements already present are left untouched so they are not reindexed.
+   *
+   * <p>The assertions are copied into memory, so the inference model never reads the transactional
+   * assertions dataset after this method returns.
    */
-  public void recomputeInference() {
+  public synchronized void recomputeInference() {
     long start = System.currentTimeMillis();
+    Model base = ModelFactory.createDefaultModel();
+    Txn.executeRead(assertions, () -> base.add(assertions.getDefaultModel()));
+    infModel = ModelFactory.createInfModel(reasoner, base);
+    patchInferences("Recomputed", start);
+  }
+
+  /**
+   * Extends the inference closure with newly approved assertions and patches the inference dataset
+   * with the difference, without recomputing the closure from scratch.
+   *
+   * <p>Falls back to {@link #recomputeInference()} if the closure has not been computed yet — the
+   * assertions dataset already contains the novel statements.
+   *
+   * @param novel the newly approved assertions
+   */
+  public synchronized void addInference(Model novel) {
+    if (infModel == null) {
+      recomputeInference();
+      return;
+    }
+    if (novel.isEmpty()) return;
+    long start = System.currentTimeMillis();
+    infModel.add(novel);
+    patchInferences("Extended", start);
+  }
+
+  private void patchInferences(String action, long start) {
     Model inferred = ModelFactory.createDefaultModel();
-    Txn.executeRead(
-        assertions,
-        () -> {
-          Model owlClosure = ModelFactory.createInfModel(owlReasoner, assertions.getDefaultModel());
-          inferred.add(ModelFactory.createInfModel(ruleReasoner, owlClosure));
-        });
+    inferred.add(infModel);
     Model stale = ModelFactory.createDefaultModel();
     Model novel = ModelFactory.createDefaultModel();
     Txn.executeRead(
@@ -93,7 +116,8 @@ public class InferenceService {
     collector.txnCommit();
     RDFPatchOps.applyChange(inferences.asDatasetGraph(), collector.getRDFPatch());
     log.info(
-        "Recomputed inference in {} ms: {} novel and {} stale statements",
+        "{} inference in {} ms: {} novel and {} stale statements",
+        action,
         System.currentTimeMillis() - start,
         novel.size(),
         stale.size());

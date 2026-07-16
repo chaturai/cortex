@@ -13,8 +13,8 @@
   <li th:fragment="classNode(ontClass)" class="class-node">
     <a
       class="class-link"
-      th:href="@{/assertions(type=${ontClass.name})}"
-      th:text="${ontClass.name}"></a>
+      th:href="@{/assertions(type=${ontClass.term.uri})}"
+      th:text="${ontClass.term.prefix != null ? ontClass.term.prefix + ':' + ontClass.term.localName : ontClass.term.localName}"></a>
     <ul class="class-tree" th:if="${!ontClass.subClasses.isEmpty()}">
       <th:block th:each="subClass : ${ontClass.subClasses}">
         <li th:replace="~{fragments :: classNode(${subClass})}"></li>

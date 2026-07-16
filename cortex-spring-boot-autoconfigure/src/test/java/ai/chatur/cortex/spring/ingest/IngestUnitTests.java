@@ -1,14 +1,6 @@
 package ai.chatur.cortex.spring.ingest;
 
-import ai.chatur.cortex.BranchChange;
-import ai.chatur.cortex.BranchInfo;
-import ai.chatur.cortex.BranchRename;
-import ai.chatur.cortex.BranchStatement;
-import ai.chatur.cortex.BranchSubject;
-import ai.chatur.cortex.Cortex;
-import ai.chatur.cortex.IngestResult;
-import ai.chatur.cortex.OntologyClass;
-import ai.chatur.cortex.ProvenancedStatement;
+import ai.chatur.cortex.*;
 import ai.chatur.cortex.spring.CortexConfiguration;
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -47,10 +39,10 @@ public class IngestUnitTests {
   /** Assertions never seen before, so every test stages a branch regardless of run order. */
   String freshAssertion() {
     return """
-        @prefix o: <cortex://ontology/> .
-        @prefix : <cortex://assertions/> .
+        @prefix : <example://ontology#> .
+        @prefix kb: <example://kb/> .
 
-        :Task-%1$s o:assignedTo :Agent-%1$s .
+        kb:Task-%1$s :assignedTo kb:Agent-%1$s .
         """
         .formatted(UUID.randomUUID());
   }
@@ -110,15 +102,15 @@ public class IngestUnitTests {
   void shouldNotStageAssertionsFailingLint() throws IOException {
     String ttl =
         """
-        @prefix o: <cortex://ontology/> .
-        @prefix : <cortex://assertions/> .
+        @prefix : <example://ontology#> .
+        @prefix kb: <example://kb/> .
 
-        :LintTask o:unknownProperty :LintAgent .
+        kb:LintTask :unknownProperty kb:LintAgent .
         """;
     IngestResult ingestResult = cortex.ingest(ttl);
     assert (!ingestResult.valid());
     assert (ingestResult.branch() == null);
-    assert (ingestResult.errors().contains("cortex://ontology/unknownProperty"));
+    assert (ingestResult.errors().contains("unknownProperty"));
   }
 
   @Test
@@ -142,11 +134,11 @@ public class IngestUnitTests {
   void shouldUpdateBranchWithDeletionsAndEdits() throws IOException {
     String ttl =
         """
-        @prefix o: <cortex://ontology/> .
-        @prefix : <cortex://assertions/> .
+        @prefix : <example://ontology#> .
+        @prefix kb: <example://kb/> .
 
-        :UpdateTask o:assignedTo :FirstAgent ;
-            o:assignedTo :DroppedAgent .
+        kb:UpdateTask :assignedTo kb:FirstAgent ;
+            :assignedTo kb:DroppedAgent .
         """;
     IngestResult ingestResult = cortex.ingest(ttl);
     String branch = ingestResult.branch();
@@ -182,12 +174,12 @@ public class IngestUnitTests {
                     edited.object(),
                     edited.literal(),
                     edited.datatype(),
-                    "cortex://assertions/EditedAgent")));
+                    "example://kb/EditedAgent")));
     assert (updated);
 
     List<BranchStatement> statements = cortex.getBranchSubjects(branch).getFirst().statements();
     assert (statements.size() == 1);
-    assert (statements.getFirst().object().equals("cortex://assertions/EditedAgent"));
+    assert (statements.getFirst().object().equals("example://kb/EditedAgent"));
   }
 
   @Test
@@ -201,7 +193,7 @@ public class IngestUnitTests {
     // Renaming the agent rewrites the statement referencing it as object
     boolean renamed =
         cortex.renameBranchSubjects(
-            branch, List.of(new BranchRename(agent, "cortex://assertions/RenamedAgent")));
+            branch, List.of(new BranchRename(agent, "example://kb/RenamedAgent")));
     assert (renamed);
     List<BranchSubject> subjects = cortex.getBranchSubjects(branch);
     assert (subjects.size() == 1);
@@ -211,12 +203,12 @@ public class IngestUnitTests {
         .statements()
         .getFirst()
         .object()
-        .equals("cortex://assertions/RenamedAgent"));
+        .equals("example://kb/RenamedAgent"));
 
     // Renaming the task removes the statements describing it
     renamed =
         cortex.renameBranchSubjects(
-            branch, List.of(new BranchRename(task.uri(), "cortex://assertions/RenamedTask")));
+            branch, List.of(new BranchRename(task.uri(), "example://kb/RenamedTask")));
     assert (renamed);
     assert (cortex.getBranchSubjects(branch).isEmpty());
 
@@ -229,11 +221,12 @@ public class IngestUnitTests {
     String ttl =
         """
         @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-        @prefix o: <cortex://ontology/> .
-        @prefix : <cortex://assertions/> .
 
-        :Task-%1$s o:assignedTo :Agent-%1$s .
-        :Agent-%1$s rdfs:label "agent %1$s" .
+        @prefix : <example://ontology#> .
+        @prefix kb: <example://kb/> .
+
+        kb:Task-%1$s :assignedTo kb:Agent-%1$s .
+        kb:Agent-%1$s rdfs:label "agent %1$s" .
         """
             .formatted(uuid);
     IngestResult ingestResult = cortex.ingest(ttl);
@@ -288,9 +281,9 @@ public class IngestUnitTests {
     @SuppressWarnings("unchecked")
     List<OntologyClass> classes = (List<OntologyClass>) model.getAttribute("classes");
     assert (classes != null);
-    List<String> names = classes.stream().map(OntologyClass::name).toList();
-    assert (names.contains("Task"));
-    assert (names.contains("Agent"));
+    List<Term> names = classes.stream().map(OntologyClass::term).toList();
+    assert (names.contains(new Term("", "Task", "example://ontology#Task")));
+    assert (names.contains(new Term("", "Agent", "example://ontology#Agent")));
   }
 
   @Test
@@ -298,14 +291,14 @@ public class IngestUnitTests {
     approve(validAssertion.getContentAsString(Charset.defaultCharset()));
 
     Model model = new ExtendedModelMap();
-    String view = ingestController.getAssertions("Task", model);
+    String view = ingestController.getAssertions("example://ontology#Task", model);
     assert (view.equals("instances"));
-    assert ("Task".equals(model.getAttribute("type")));
+    assert ("example://ontology#Task".equals(model.getAttribute("type")));
 
     @SuppressWarnings("unchecked")
-    List<String> instances = (List<String>) model.getAttribute("instances");
+    List<Term> instances = (List<Term>) model.getAttribute("instances");
     assert (instances != null);
-    assert (instances.contains("assertions/ValidTask"));
+    assert (instances.contains(new Term("kb", "ValidTask", "example://kb/ValidTask")));
   }
 
   @Test
@@ -313,7 +306,7 @@ public class IngestUnitTests {
     String id = "test";
 
     Model model = new ExtendedModelMap();
-    String view = ingestController.describe(id, model);
+    String view = ingestController.describeUri(id, model);
     assert (view.equals("describe"));
     assert (id.equals(model.getAttribute("subject")));
     assert (cortex.describe(id).equals(model.getAttribute("statements")));
@@ -323,14 +316,64 @@ public class IngestUnitTests {
   void describeShouldIncludeProvenance() throws IOException {
     approve(validAssertion.getContentAsString(Charset.defaultCharset()));
 
-    List<ProvenancedStatement> statements = cortex.describe("assertions/ValidTask");
+    List<ProvenancedStatement> statements = cortex.describe("example://kb/ValidTask");
     assert (!statements.isEmpty());
     ProvenancedStatement assigned =
         statements.stream()
-            .filter(statement -> statement.predicate().contains("assignedTo"))
+            .filter(
+                statement -> "example://ontology#assignedTo".equals(statement.predicate().uri()))
             .findFirst()
             .orElseThrow();
     assert (assigned.created() != null);
+    assert ("kb".equals(assigned.object().prefix()));
+    assert ("ValidAgent".equals(assigned.object().localName()));
+    assert ("example://kb/ValidAgent".equals(assigned.object().uri()));
+  }
+
+  @Test
+  void describeShouldReturnLiteralsWithoutUri() throws IOException {
+    String uuid = UUID.randomUUID().toString();
+    approve(
+        """
+        @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+        @prefix : <example://ontology#> .
+        @prefix kb: <example://kb/> .
+
+        kb:Task-%1$s :assignedTo kb:Agent-%1$s .
+        kb:Agent-%1$s rdfs:label "agent %1$s" .
+        """
+            .formatted(uuid));
+
+    List<ProvenancedStatement> statements = cortex.describe("example://kb/Agent-" + uuid);
+    ProvenancedStatement label =
+        statements.stream()
+            .filter(
+                statement ->
+                    "http://www.w3.org/2000/01/rdf-schema#label"
+                        .equals(statement.predicate().uri()))
+            .findFirst()
+            .orElseThrow();
+    assert ("rdfs".equals(label.predicate().prefix()));
+    assert ("label".equals(label.predicate().localName()));
+    assert (label.object().prefix() == null);
+    assert (label.object().uri() == null);
+    assert (("agent " + uuid).equals(label.object().localName()));
+  }
+
+  @Test
+  void controllerShouldRenderDescribeViewForFullUri() throws IOException {
+    approve(validAssertion.getContentAsString(Charset.defaultCharset()));
+
+    Model model = new ExtendedModelMap();
+    String view = ingestController.describeUri("example://kb/ValidTask", model);
+    assert (view.equals("describe"));
+    assert ("example://kb/ValidTask".equals(model.getAttribute("subject")));
+
+    @SuppressWarnings("unchecked")
+    List<ProvenancedStatement> statements =
+        (List<ProvenancedStatement>) model.getAttribute("statements");
+    assert (statements != null);
+    assert (!statements.isEmpty());
   }
 
   @Test
@@ -338,10 +381,10 @@ public class IngestUnitTests {
     String uuid = UUID.randomUUID().toString();
     String ttl =
         """
-        @prefix o: <cortex://ontology/> .
-        @prefix : <cortex://assertions/> .
+        @prefix : <example://ontology#> .
+        @prefix kb: <example://kb/> .
 
-        :Task-%1$s o:assignedTo :Agent-%1$s .
+        kb:Task-%1$s :assignedTo kb:Agent-%1$s .
         """
             .formatted(uuid);
     IngestResult first = cortex.ingest(ttl);
@@ -352,12 +395,54 @@ public class IngestUnitTests {
     cortex.approve(first.branch());
     cortex.approve(second.branch());
 
-    List<ProvenancedStatement> statements = cortex.describe("assertions/Task-" + uuid);
+    List<ProvenancedStatement> statements = cortex.describe("example://kb/Task-" + uuid);
     assert (statements.size() == statements.stream().distinct().count());
     assert (statements.stream()
-            .filter(statement -> statement.predicate().contains("assignedTo"))
+            .filter(
+                statement -> "example://ontology#assignedTo".equals(statement.predicate().uri()))
             .count()
         == 1);
+  }
+
+  @Test
+  void listBranchesShouldExcludeProvenanceGraph() throws IOException {
+    approve(freshAssertion());
+
+    assert (!cortex.listBranches().contains("provenance"));
+    assert (!cortex.hasBranch("provenance"));
+  }
+
+  @Test
+  void assertionsShouldNotCarryProvenance() throws IOException {
+    approve(freshAssertion());
+
+    String trig = cortex.getAssertions();
+    assert (trig.contains("assignedTo"));
+    assert (!trig.contains("reifies"));
+    assert (!trig.contains("wasGeneratedBy"));
+    assert (!trig.contains("endedAtTime"));
+  }
+
+  @Test
+  void approvalsShouldExtendInferenceIncrementally() throws IOException {
+    String firstUuid = UUID.randomUUID().toString();
+    String secondUuid = UUID.randomUUID().toString();
+    String template =
+        """
+        @prefix : <example://ontology#> .
+        @prefix kb: <example://kb/> .
+
+        kb:Task-%1$s :assignedTo kb:Agent-%1$s .
+        """;
+    approve(template.formatted(firstUuid));
+    approve(template.formatted(secondUuid));
+
+    // The tasks are typed by the domain rule, without any explicit recomputation
+    List<Term> instances = cortex.getInstances("example://ontology#Task");
+    assert (instances.contains(
+        new Term("kb", "Task-" + firstUuid, "example://kb/Task-" + firstUuid)));
+    assert (instances.contains(
+        new Term("kb", "Task-" + secondUuid, "example://kb/Task-" + secondUuid)));
   }
 
   @Test
@@ -375,14 +460,15 @@ public class IngestUnitTests {
   void shouldStageOnlyNovelTriples() throws IOException {
     String ttl =
         """
-        @prefix o: <cortex://ontology/> .
-        @prefix : <cortex://assertions/> .
+        @prefix : <example://ontology#> .
+        @prefix kb: <example://kb/> .
 
-        :PartialTask o:assignedTo :PartialAgent .
+        kb:PartialTask :assignedTo kb:PartialAgent .
         """;
     approve(ttl);
 
-    IngestResult ingestResult = cortex.ingest(ttl + "\n:PartialTask o:assignedTo :SecondAgent .");
+    IngestResult ingestResult =
+        cortex.ingest(ttl + "\nkb:PartialTask :assignedTo kb:SecondAgent .");
     assert (ingestResult.valid());
     assert (cortex.hasBranch(ingestResult.branch()));
 
@@ -395,23 +481,24 @@ public class IngestUnitTests {
   void shouldValidateAgainstApprovedAssertions() throws IOException {
     String ttl =
         """
-        @prefix o: <cortex://ontology/> .
-        @prefix : <cortex://assertions/> .
+        @prefix : <example://ontology#> .
+        @prefix kb: <example://kb/> .
 
-        :UnionAgent a o:Agent .
+        kb:UnionAgent a :Agent .
 
-        :UnionTask a o:Task ;
-            o:assignedTo :UnionAgent .
+        kb:UnionTask a :Task ;
+            :assignedTo kb:UnionAgent .
         """;
     approve(ttl);
 
     String update =
         """
         @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-        @prefix o: <cortex://ontology/> .
-        @prefix : <cortex://assertions/> .
 
-        :UnionTask a o:Task ;
+        @prefix : <example://ontology#> .
+        @prefix kb: <example://kb/> .
+
+        kb:UnionTask a :Task ;
             rdfs:label "union task" .
         """;
     IngestResult ingestResult = cortex.ingest(update);

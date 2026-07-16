@@ -3,8 +3,8 @@
 @prefix sh:   <http://www.w3.org/ns/shacl#> .
 @prefix prov: <http://www.w3.org/ns/prov#> .
 
-@prefix : <cortex://ontology/> .
-@prefix s: <cortex://shapes/> .
+@prefix : <example://ontology#> .
+@prefix s: <example://shapes#> .
 
 s:UnknownShape a sh:NodeShape ;
     sh:targetSubjectsOf rdf:type ;

@@ -75,8 +75,11 @@ public class QueryConfiguration {
   }
 
   @Bean
-  QueryService queryService(@Qualifier("inferences") Dataset inferences, OntModel ontModel) {
-    return new QueryService(inferences, ontModel);
+  QueryService queryService(
+      @Qualifier("inferences") Dataset inferences,
+      @Qualifier("assertions") Dataset assertions,
+      OntModel ontModel) {
+    return new QueryService(inferences, assertions, ontModel);
   }
 
   @Bean

@@ -10,8 +10,8 @@
           <li class="instance-item" th:each="instance : ${instances}">
             <a
               class="instance-link"
-              th:href="@{'/assertions/' + ${instance}}"
-              th:text="${instance}"></a>
+              th:href="@{/describe(uri=${instance.uri})}"
+              th:text="${instance.prefix != null ? instance.prefix + ':' + instance.localName : instance.localName}"></a>
           </li>
         </ul>
         <p class="instances-empty" th:if="${instances.isEmpty()}">No instances of this class.</p>

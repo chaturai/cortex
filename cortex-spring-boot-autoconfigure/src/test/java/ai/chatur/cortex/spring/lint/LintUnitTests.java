@@ -47,11 +47,12 @@ public class LintUnitTests {
   void shouldAllowTypeLabelAndCommentBeyondOntology() throws IOException {
     String ttl =
         """
-        @prefix o: <cortex://ontology/> .
         @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-        @prefix : <cortex://assertions/> .
 
-        :LintTask a o:Task ;
+        @prefix : <example://ontology#> .
+        @prefix kb: <example://kb/> .
+
+        kb:LintTask a :Task ;
             rdfs:label "Lint task" ;
             rdfs:comment "A task used to test linting" .
         """;
@@ -64,15 +65,15 @@ public class LintUnitTests {
   void shouldRejectPropertyNotInOntology() throws IOException {
     String ttl =
         """
-        @prefix o: <cortex://ontology/> .
-        @prefix : <cortex://assertions/> .
+        @prefix : <example://ontology#> .
+        @prefix kb: <example://kb/> .
 
-        :LintTask o:unknownProperty :LintAgent .
+        kb:LintTask :unknownProperty kb:LintAgent .
         """;
     LintResult lintResult = cortex.lint(ttl);
     assert (!lintResult.valid());
     assert (lintResult.ttl() == null);
-    assert (lintResult.errors().contains("cortex://ontology/unknownProperty"));
+    assert (lintResult.errors().contains("unknownProperty"));
   }
 
   @Test
@@ -81,7 +82,7 @@ public class LintUnitTests {
     LintResult lintResult = cortex.lint(ttl);
     assert (!lintResult.valid());
     assert (lintResult.ttl() == null);
-    assert (lintResult.errors().contains("cortex://ontology/InvalidClass"));
+    assert (lintResult.errors().contains("InvalidClass"));
   }
 
   @Test

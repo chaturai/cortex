@@ -1,6 +1,7 @@
 package ai.chatur.cortex.core.stats;
 
 import ai.chatur.cortex.CortexStats;
+import ai.chatur.cortex.core.CortexNamespace;
 import java.util.Calendar;
 import java.util.List;
 import org.apache.jena.atlas.iterator.Iter;
@@ -30,10 +31,12 @@ public class StatsService {
           PREFIX prov: <http://www.w3.org/ns/prov#>
           SELECT (COUNT(*) AS ?count)
           WHERE {
-            ?reifier rdf:reifies ?statement ;
-                     prov:wasGeneratedBy ?activity .
-            ?activity prov:endedAtTime ?created .
-            FILTER (?created >= ?start)
+            GRAPH <cortex://provenance> {
+              ?reifier rdf:reifies ?statement ;
+                       prov:wasGeneratedBy ?activity .
+              ?activity prov:endedAtTime ?created .
+              FILTER (?created >= ?start)
+            }
           }
           """);
 
@@ -103,7 +106,13 @@ public class StatsService {
   }
 
   long countPendingBranches() {
-    return Txn.calculateRead(assertions, () -> Iter.count(assertions.listModelNames()));
+    return Txn.calculateRead(
+        assertions,
+        () ->
+            Iter.count(
+                Iter.filter(
+                    assertions.listModelNames(),
+                    name -> !CortexNamespace.PROVENANCE.equals(name))));
   }
 
   long countAssertionTriples() {
