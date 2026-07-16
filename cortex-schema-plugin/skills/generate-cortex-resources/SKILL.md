@@ -1,11 +1,11 @@
 ---
 name: generate-cortex-resources
-description: Generate cortex's ontology.ttl, shapes.ttl, and ontology.rules from a plain-English description of classes, relations, and rules. Produces strict closed-world SHACL that rejects any triple not recognized by the ontology, including explicit assertion of inferred-only classes. Use when the user wants to define or change a cortex ontology/schema.
+description: Generate cortex's ontology.ttl, ontology.shapes, and ontology.rules from a plain-English description of classes, relations, and rules. Produces strict closed-world SHACL that rejects any triple not recognized by the ontology, including explicit assertion of inferred-only classes. Use when the user wants to define or change a cortex ontology/schema.
 ---
 
 # Generate Cortex Resources
 
-Generate a complete, mutually-consistent set of three cortex schema files from natural-language ontology requirements: an OWL ontology (`ontology.ttl`), strict SHACL shapes for pre-inference validation (`shapes.ttl`), and Jena rules for controlled inference (`ontology.rules`).
+Generate a complete, mutually-consistent set of three cortex schema files from natural-language ontology requirements: an OWL ontology (`ontology.ttl`), strict SHACL shapes for pre-inference validation (`ontology.shapes`), and Jena rules for controlled inference (`ontology.rules`).
 
 ## Workflow
 
@@ -23,13 +23,15 @@ Ask the user for:
 
 Clarify any ambiguities. Treat "zero or more" (optional, unbounded) as the default cardinality if not stated.
 
-### 2. Namespace Conventions (Fixed)
+### 2. Namespace Conventions
 
-The ontology uses three fixed, non-negotiable URI prefixes:
+Nothing in Cortex enforces or expects any particular URI scheme — the ontology, shapes, and instance namespaces are entirely the user's choice. Ask the user what they'd like to use, or default to a pattern like the one this repository's own example app uses:
 
-- **Ontology/schema namespace**: `@prefix : <cortex://ontology/>` — all classes and properties live here.
-- **Shapes namespace**: `@prefix s: <cortex://shapes/>` — all SHACL node shapes live here.
-- **Instance namespace**: `@prefix cortex: <cortex://>` — all asserted instance IRIs must match the pattern `^cortex://[^/?#]+$` (flat, no path/query/fragment).
+- **Ontology/schema namespace**: `@prefix : <example://ontology#>` — classes and properties.
+- **Shapes namespace**: `@prefix s: <example://shapes#>` — SHACL node shapes.
+- **Instance namespace**: `@prefix kb: <example://kb/>` — asserted instance IRIs, e.g. constrained by `sh:pattern` to `^example://kb/[^/?#]+$`.
+
+**`cortex://` is reserved and must never be used for user data.** Cortex uses it internally for its own bookkeeping resources — `cortex://provenance` (the provenance graph) and `cortex://branch-<uuid>` (each branch pending review) — which live in the same dataset as user assertions. Minting ontology, shape, or instance IRIs under `cortex://` risks colliding with these reserved resources (an instance named `provenance` would collide with `cortex://provenance` exactly) and must be avoided regardless of what scheme is otherwise chosen.
 
 Every class and property declaration must include `rdfs:label` (human-readable name) and `rdfs:comment` (brief description). These are enforced by SHACL validation.
 
@@ -38,7 +40,7 @@ Every class and property declaration must include `rdfs:label` (human-readable n
 Scaffold using OWL 2 DL (Jena OntAPI will parse it):
 
 ```turtle
-@prefix :     <cortex://ontology/> .
+@prefix :     <example://ontology#> .
 @prefix owl:  <http://www.w3.org/2002/07/owl#> .
 @prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
@@ -77,7 +79,7 @@ Scaffold using OWL 2 DL (Jena OntAPI will parse it):
 - Every property must declare `rdfs:domain` and `rdfs:range`.
 - Use `rdfs:subClassOf` to express class hierarchies; `rdfs:subPropertyOf` for property specialization.
 - Every class and property must have `rdfs:label` and `rdfs:comment`.
-- Do not include an `owl:Ontology` declaration (the example code does not use one).
+- An `owl:Ontology` declaration is optional — Cortex's loader parses the file either way — so include one only if the user wants the standard ontology-metadata header; it is not required for anything downstream to work.
 
 Ask the user to confirm the ontology before proceeding.
 
@@ -107,10 +109,10 @@ Then, for each **inferred-only class** from step 1, add one rule. The rule's bod
 
 Ask the user to confirm the rules before proceeding.
 
-### 5. Draft the Shapes (shapes.ttl)
+### 5. Draft the Shapes (ontology.shapes)
 
 SHACL validation runs on the raw, pre-inference graph at ingest time. It enforces:
-1. Every assertion subject is a valid `cortex://` IRI.
+1. Every assertion subject is a valid instance IRI in the chosen instance namespace.
 2. Every assertion has a declared type (class).
 3. Only assertable (non-inferred) classes may be asserted.
 4. Every assertion has `rdfs:label` and `rdfs:comment`.
@@ -123,8 +125,8 @@ SHACL validation runs on the raw, pre-inference graph at ingest time. It enforce
 @prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix sh:   <http://www.w3.org/ns/shacl#> .
-@prefix :     <cortex://ontology/> .
-@prefix s:    <cortex://shapes/> .
+@prefix :     <example://ontology#> .
+@prefix s:    <example://shapes#> .
 
 s:AssertionShape a sh:NodeShape ;
     sh:targetSubjectsOf rdf:type ;
@@ -134,8 +136,8 @@ s:AssertionShape a sh:NodeShape ;
     # ... (sh:targetSubjectsOf for every property in the ontology)
 
     sh:nodeKind sh:IRI ;
-    sh:pattern "^cortex://[^/?#]+$" ;
-    sh:message "assertions must be cortex://{name} IRIs without sub-paths" ;
+    sh:pattern "^example://kb/[^/?#]+$" ;
+    sh:message "assertions must be example://kb/{name} IRIs without sub-paths" ;
 
     sh:property [
         sh:path rdf:type ;
@@ -210,10 +212,10 @@ Ask the user to confirm the shapes before proceeding.
 
 Before writing files, run these checks:
 
-1. Every property referenced in `ontology.rules` or `shapes.ttl` exists in `ontology.ttl`.
+1. Every property referenced in `ontology.rules` or `ontology.shapes` exists in `ontology.ttl`.
 2. Every property that has `rdfs:domain ?c` in `ontology.ttl` appears in shape `s:CShape` (the per-class shape for class `?c`).
 3. Every inferred-only class exists in `ontology.ttl` as a subclass of some assertable class, has a rule in `ontology.rules`, and is **absent from** `s:AssertionShape`'s `sh:in` list.
-4. No typos in prefixes: only `cortex://ontology/`, `cortex://shapes/`, `cortex://`, never `http://` or other schemes.
+4. No typos in prefixes, and none of the chosen namespaces is `cortex://` (reserved — see Namespace Conventions above).
 
 If any check fails, report the violation with line numbers and ask the user to clarify.
 
@@ -222,7 +224,7 @@ If any check fails, report the violation with line numbers and ask the user to c
 Ask the user for the target location (or confirm if the repo has only one cortex Spring Boot app example). Write the three files:
 
 - `ontology.ttl` to the target module's `src/main/resources/ontology.ttl`.
-- `shapes.ttl` to the target module's `src/main/resources/shapes.ttl`.
+- `ontology.shapes` to the target module's `src/main/resources/ontology.shapes`.
 - `ontology.rules` to the target module's `src/main/resources/ontology.rules`.
 
 Confirm success: "Three files written to `{module}/src/main/resources/`. Ontology is live."
@@ -232,7 +234,7 @@ Confirm success: "Three files written to `{module}/src/main/resources/`. Ontolog
 - **Never invent vocabulary:** Only use classes and properties explicitly requested by the user.
 - **Never add inferred-only classes to `sh:in`:** A class in `sh:in` means it is allowed to be asserted; inferred classes are derived by rules only.
 - **Always keep per-class shapes in sync:** If a class has a property with `rdfs:domain :ClassName`, that property must appear in `s:ClassNameShape`'s allowed list. If `sh:closed true`, omitting it will cause valid instances to fail.
-- **Use only the fixed cortex namespaces:** `cortex://ontology/`, `cortex://shapes/`, `cortex://`. Never introduce new URL schemes or URNs.
+- **Never use `cortex://` for the ontology, shapes, or instance namespace:** it is reserved for Cortex's own `cortex://provenance` and `cortex://branch-<uuid>` resources. Any other scheme the user prefers — `http://`, a custom URN, etc. — is fine.
 - **Trust the domain/range declaration:** The `domain` and `range` rules in `ontology.rules` will automatically infer the subject/object type from a property assertion; you do not need to repeat the type check in shapes.
 
 ## Conventions

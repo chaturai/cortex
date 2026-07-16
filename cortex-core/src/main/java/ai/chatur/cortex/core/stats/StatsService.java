@@ -2,6 +2,7 @@ package ai.chatur.cortex.core.stats;
 
 import ai.chatur.cortex.CortexStats;
 import ai.chatur.cortex.core.CortexNamespace;
+import ai.chatur.cortex.core.jena.Sparql;
 import java.util.Calendar;
 import java.util.List;
 import org.apache.jena.atlas.iterator.Iter;
@@ -9,7 +10,6 @@ import org.apache.jena.ontapi.model.OntClass;
 import org.apache.jena.ontapi.model.OntModel;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.query.Query;
-import org.apache.jena.query.QueryExecution;
 import org.apache.jena.query.QueryFactory;
 import org.apache.jena.rdf.model.Literal;
 import org.apache.jena.rdf.model.ResourceFactory;
@@ -82,18 +82,10 @@ public class StatsService {
 
   long countTriplesAddedToday() {
     Literal startOfDay = ResourceFactory.createTypedLiteral(getStartOfDay());
-    return Txn.calculateRead(
-        assertions,
-        () -> {
-          QueryExecution queryExecution =
-              QueryExecution.dataset(assertions)
-                  .query(ADDED_TODAY)
-                  .substitution("start", startOfDay)
-                  .build();
-          try (queryExecution) {
-            return queryExecution.execSelect().next().getLiteral("count").getLong();
-          }
-        });
+    return Sparql.on(assertions, ADDED_TODAY)
+        .bind("start", startOfDay)
+        .execute(
+            queryExecution -> queryExecution.execSelect().next().getLiteral("count").getLong());
   }
 
   Calendar getStartOfDay() {

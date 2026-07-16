@@ -1,6 +1,6 @@
 {
   "name": "cortex-schema",
-  "description": "Generate cortex ontology resources (ontology.ttl, shapes.ttl, ontology.rules) from natural-language requirements",
+  "description": "Generate cortex ontology resources (ontology.ttl, ontology.shapes, ontology.rules) from natural-language requirements",
   "owner": {
     "name": "Ajay Viswanathan",
     "email": "ajay.viswanathan@gmail.com"
@@ -10,8 +10,8 @@
       "name": "cortex-schema",
       "source": "./",
       "description": "Generate strict SHACL-based cortex ontology resources from plain-English class/property descriptions. Ensures closed-world validation, enforces cardinality/type constraints, and prevents direct assertion of inferred-only classes.",
-      "version": "0.0.1",
-      "license": "MIT",
+      "version": "0.1.0",
+      "license": "Apache-2.0",
       "keywords": [
         "cortex",
         "ontology",

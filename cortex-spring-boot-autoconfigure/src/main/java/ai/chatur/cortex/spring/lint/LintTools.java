@@ -1,8 +1,7 @@
 package ai.chatur.cortex.spring.lint;
 
-import ai.chatur.cortex.Cortex;
+import ai.chatur.cortex.CortexLinter;
 import ai.chatur.cortex.LintResult;
-import java.io.IOException;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 
@@ -12,9 +11,14 @@ import org.springframework.ai.mcp.annotation.McpToolParam;
  */
 public class LintTools {
 
-  private final Cortex cortex;
+  private final CortexLinter cortex;
 
-  public LintTools(Cortex cortex) {
+  /**
+   * Creates the tool.
+   *
+   * @param cortex the linter role used to lint assertions
+   */
+  public LintTools(CortexLinter cortex) {
     this.cortex = cortex;
   }
 
@@ -32,8 +36,7 @@ public class LintTools {
               destructiveHint = false,
               idempotentHint = true,
               openWorldHint = false))
-  LintResult lint(@McpToolParam(description = "RDF assertions to lint in TTL syntax") String ttl)
-      throws IOException {
+  LintResult lint(@McpToolParam(description = "RDF assertions to lint in TTL syntax") String ttl) {
     return cortex.lint(ttl);
   }
 }

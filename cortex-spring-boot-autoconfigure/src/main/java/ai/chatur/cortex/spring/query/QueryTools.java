@@ -1,7 +1,7 @@
 package ai.chatur.cortex.spring.query;
 
-import ai.chatur.cortex.Cortex;
-import java.io.IOException;
+import ai.chatur.cortex.CortexQuery;
+import ai.chatur.cortex.CortexSearch;
 import java.util.function.Predicate;
 import org.apache.jena.query.Query;
 import org.apache.jena.query.QueryFactory;
@@ -19,10 +19,18 @@ public class QueryTools {
 
   private static final Logger log = LoggerFactory.getLogger(QueryTools.class);
 
-  private final Cortex cortex;
+  private final CortexQuery cortexQuery;
+  private final CortexSearch cortexSearch;
 
-  public QueryTools(Cortex cortex) {
-    this.cortex = cortex;
+  /**
+   * Creates the tools.
+   *
+   * @param cortexQuery the query role used to run SPARQL queries
+   * @param cortexSearch the search role used for full-text search
+   */
+  public QueryTools(CortexQuery cortexQuery, CortexSearch cortexSearch) {
+    this.cortexQuery = cortexQuery;
+    this.cortexSearch = cortexSearch;
   }
 
   @McpTool(
@@ -35,8 +43,7 @@ public class QueryTools {
               destructiveHint = false,
               idempotentHint = true,
               openWorldHint = false))
-  String query(@McpToolParam(description = "SPARQL SELECT query") String sparql)
-      throws IOException {
+  String query(@McpToolParam(description = "SPARQL SELECT query") String sparql) {
     return execute(sparql, Query::isSelectType, "SELECT");
   }
 
@@ -50,7 +57,7 @@ public class QueryTools {
               destructiveHint = false,
               idempotentHint = true,
               openWorldHint = false))
-  String ask(@McpToolParam(description = "SPARQL ASK query") String sparql) throws IOException {
+  String ask(@McpToolParam(description = "SPARQL ASK query") String sparql) {
     return execute(sparql, Query::isAskType, "ASK");
   }
 
@@ -64,8 +71,7 @@ public class QueryTools {
               destructiveHint = false,
               idempotentHint = true,
               openWorldHint = false))
-  String describe(@McpToolParam(description = "SPARQL DESCRIBE query") String sparql)
-      throws IOException {
+  String describe(@McpToolParam(description = "SPARQL DESCRIBE query") String sparql) {
     return execute(sparql, Query::isDescribeType, "DESCRIBE");
   }
 
@@ -80,10 +86,10 @@ public class QueryTools {
               idempotentHint = true,
               openWorldHint = false))
   String search(@McpToolParam(description = "Text to search for") String text) {
-    return cortex.search(text);
+    return cortexSearch.search(text);
   }
 
-  String execute(String sparql, Predicate<Query> expectedType, String expected) throws IOException {
+  String execute(String sparql, Predicate<Query> expectedType, String expected) {
     Query query;
     try {
       query = QueryFactory.create(sparql);
@@ -95,6 +101,6 @@ public class QueryTools {
       log.warn("Rejected SPARQL query that is not a {} query", expected);
       throw new IllegalArgumentException("This tool only accepts SPARQL " + expected + " queries");
     }
-    return cortex.query(sparql);
+    return cortexQuery.query(sparql);
   }
 }

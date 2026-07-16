@@ -1,1 +1,3 @@
-ai.chatur.cortex.spring.CortexConfiguration
+ai.chatur.cortex.spring.CortexAutoConfiguration
+ai.chatur.cortex.spring.web.CortexWebAutoConfiguration
+ai.chatur.cortex.spring.mcp.CortexMcpAutoConfiguration

@@ -12,7 +12,9 @@ package ai.chatur.cortex;
  * @param inferenceTriples the total number of triples visible to queries, including statements
  *     derived by inference
  * @param ontologyClasses the number of classes defined in the ontology
- * @param shapes the number of SHACL shapes ingested assertions are validated against
+ * @param shapes the number of root (targeted) SHACL shapes ingested assertions are validated
+ *     against — shapes reachable only as a nested {@code sh:property} of another shape are not
+ *     counted separately, since they have no target of their own
  * @param rules the number of rules used for inference
  */
 public record CortexStats(

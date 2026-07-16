@@ -1,8 +1,7 @@
 package ai.chatur.cortex.spring.ingest;
 
-import ai.chatur.cortex.Cortex;
+import ai.chatur.cortex.CortexIngestor;
 import ai.chatur.cortex.IngestResult;
-import java.io.IOException;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 
@@ -12,9 +11,14 @@ import org.springframework.ai.mcp.annotation.McpToolParam;
  */
 public class IngestTools {
 
-  private final Cortex cortex;
+  private final CortexIngestor cortex;
 
-  public IngestTools(Cortex cortex) {
+  /**
+   * Creates the tool.
+   *
+   * @param cortex the ingestor role used to ingest assertions
+   */
+  public IngestTools(CortexIngestor cortex) {
     this.cortex = cortex;
   }
 
@@ -32,8 +36,7 @@ public class IngestTools {
           @McpTool.McpAnnotations(title = "Ingest", destructiveHint = false, openWorldHint = false))
   IngestResult ingest(
       @McpToolParam(description = "RDF Data to be ingested to knowledge graph in TTL syntax")
-          String ttl)
-      throws IOException {
+          String ttl) {
     return cortex.ingest(ttl);
   }
 }

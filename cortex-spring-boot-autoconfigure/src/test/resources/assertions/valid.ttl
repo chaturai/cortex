@@ -1,4 +1,0 @@
-@prefix : <example://ontology#> .
-@prefix kb: <example://kb/> .
-
-kb:ValidTask :assignedTo kb:ValidAgent .
