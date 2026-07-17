@@ -164,6 +164,21 @@ main {
   color: var(--base1);
 }
 
+.branches-notice,
+.branches-error {
+  margin-bottom: 1.5rem;
+  padding: 0.75rem 1rem;
+  border-left: 2px solid var(--cyan);
+  background-color: var(--base02);
+  color: var(--base1);
+}
+
+.branches-error {
+  border-left-color: var(--red);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .branches-list {
   display: flex;
   flex-direction: column;

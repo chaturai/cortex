@@ -20,12 +20,10 @@ import org.slf4j.LoggerFactory;
  * incrementally as branches are approved, so a single {@link
  * ai.chatur.cortex.CortexBranches#approve approve} never recomputes the closure from scratch.
  * {@link #recomputeInference()} rebuilds it from a fresh in-memory copy of the assertions instead:
- * it runs once at application startup, on every {@link
- * ai.chatur.cortex.CortexArchive#importAssertions importAssertions} — a restored archive can add or
- * remove statements {@code addInference} cannot account for — and as the fallback inside {@code
- * approve} if the incremental update throws. Either way only the difference to the current
- * inference graph is applied, as an RDF patch, so the full-text index wrapped around the inference
- * dataset only ever indexes statements that are genuinely new.
+ * it runs once at application startup, and as the fallback inside {@code approve} if the
+ * incremental update throws. Either way only the difference to the current inference graph is
+ * applied, as an RDF patch, so the full-text index wrapped around the inference dataset only ever
+ * indexes statements that are genuinely new.
  */
 public class InferenceService {
 

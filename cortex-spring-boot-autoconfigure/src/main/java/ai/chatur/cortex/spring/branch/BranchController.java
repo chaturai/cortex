@@ -59,12 +59,13 @@ public class BranchController {
    * Merges a branch's staged assertions into the knowledge graph.
    *
    * @param branch the branch name
-   * @return a redirect to {@code /assertions}
+   * @return a redirect to {@code /branches}, so a reviewer working through several branches lands
+   *     back on the list rather than on a class tree that says nothing about what just merged
    */
   @PostMapping("/branches/{branch}/approve")
   public RedirectView approveBranch(@PathVariable("branch") String branch) {
     branches.approve(branch);
-    return new RedirectView("/assertions");
+    return new RedirectView("/branches");
   }
 
   /**

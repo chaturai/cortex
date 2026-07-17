@@ -65,7 +65,7 @@ class BranchControllerTests {
   }
 
   @Test
-  void approveBranchShouldDelegateAndRedirectToAssertions() {
+  void approveBranchShouldDelegateAndRedirectToBranches() {
     FakeBranches branches = FakeBranches.withNoBranches();
     BranchController controller = new BranchController(branches);
 
@@ -74,7 +74,9 @@ class BranchControllerTests {
     assertThat(branches.approvedBranch)
         .as("the controller delegates the approval to CortexBranches")
         .isEqualTo("branch-1");
-    assertThat(view.getUrl()).isEqualTo("/assertions");
+    assertThat(view.getUrl())
+        .as("a reviewer working through branches lands back on the list, as rejecting already does")
+        .isEqualTo("/branches");
   }
 
   @Test

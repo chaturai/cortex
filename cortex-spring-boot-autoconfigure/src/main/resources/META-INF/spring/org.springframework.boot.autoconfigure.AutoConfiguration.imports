@@ -1,3 +1,5 @@
 ai.chatur.cortex.spring.CortexAutoConfiguration
 ai.chatur.cortex.spring.web.CortexWebAutoConfiguration
 ai.chatur.cortex.spring.mcp.CortexMcpAutoConfiguration
+ai.chatur.cortex.spring.backup.CortexS3AutoConfiguration
+ai.chatur.cortex.spring.backup.CortexBackupAutoConfiguration

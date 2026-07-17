@@ -46,9 +46,9 @@
               id="import-file"
               type="file"
               name="file"
-              accept=".trig"
+              accept=".ttl,text/turtle"
               hidden
-              onchange="if (confirm('Replace all assertions with this backup?')) this.form.submit(); else this.value = '';" />
+              onchange="this.form.submit();" />
           </form>
         </li>
       </ul>
