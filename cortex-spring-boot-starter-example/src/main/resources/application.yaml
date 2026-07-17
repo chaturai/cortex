@@ -10,3 +10,10 @@ spring:
 
 cortex:
   persistent: true
+  ontologies:
+    - classpath:ontology.ttl
+    - classpath:skos.ttl
+  shapes:
+    - classpath:ontology.shapes
+  rules:
+    - classpath:ontology.rules

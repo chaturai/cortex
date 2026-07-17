@@ -40,10 +40,14 @@ public class OntologyService {
    */
   public List<OntologyClass> getClassHierarchy() {
     return ontModel
-        .hierarchyRoots()
-        .filter(OntClass::isURIResource)
+        .classes()
+        .filter(this::isRootClass)
         .map(root -> getOntologyClass(root, new HashSet<>()))
         .toList();
+  }
+
+  Boolean isRootClass(OntClass.Named ontClass) {
+    return ontClass.isHierarchyRoot();
   }
 
   OntologyClass getOntologyClass(OntClass ontClass, Set<OntClass> lineage) {
