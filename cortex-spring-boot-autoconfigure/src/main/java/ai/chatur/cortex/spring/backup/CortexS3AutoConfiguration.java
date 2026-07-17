@@ -49,6 +49,9 @@ public class CortexS3AutoConfiguration {
    * provider in the chain"; naming {@link ApacheHttpClient} makes the requirement explicit, and it
    * is what {@code cortex.s3.proxy} hangs off.
    *
+   * <p>The proxy configuration is applied whether or not a proxy is configured — see {@link
+   * #proxyConfiguration}, which explains why leaving it off is not the same as having no proxy.
+   *
    * @param properties the Cortex configuration properties
    * @return the configured S3 client
    */
@@ -56,16 +59,13 @@ public class CortexS3AutoConfiguration {
   @ConditionalOnMissingBean
   S3Client cortexS3Client(CortexProperties properties) {
     CortexProperties.S3 s3 = properties.s3();
-    ApacheHttpClient.Builder httpClient = ApacheHttpClient.builder();
-    if (s3.proxy().endpoint() != null) {
-      httpClient.proxyConfiguration(proxyConfiguration(s3.proxy()));
-    }
     S3ClientBuilder builder =
         S3Client.builder()
             .region(Region.of(s3.region()))
             .credentialsProvider(credentialsProvider(s3))
             .forcePathStyle(s3.pathStyleAccess())
-            .httpClientBuilder(httpClient);
+            .httpClientBuilder(
+                ApacheHttpClient.builder().proxyConfiguration(proxyConfiguration(s3.proxy())));
     if (s3.endpoint() != null) {
       builder.endpointOverride(URI.create(s3.endpoint()));
     }
@@ -82,12 +82,40 @@ public class CortexS3AutoConfiguration {
     };
   }
 
-  private static ProxyConfiguration proxyConfiguration(CortexProperties.S3.Proxy proxy) {
+  /**
+   * Builds the proxy configuration, which is applied to the client whether or not a proxy is
+   * configured.
+   *
+   * <p>Applying it unconditionally is the point. {@code ApacheHttpClient.Builder} always holds a
+   * {@code ProxyConfiguration}, defaulting to one that resolves {@code useSystemPropertyValues} and
+   * {@code useEnvironmentVariableValues} as {@code true} — so leaving it alone is not "no proxy",
+   * it is "whatever proxy the environment happens to name". An ambient {@code https.proxyHost} or
+   * {@code HTTPS_PROXY} would then route every backup upload through a proxy that appears nowhere
+   * in the Cortex configuration, and nothing would say so. Passing the configuration in every time,
+   * with both discovery settings defaulting to {@code false}, makes {@code cortex.s3.proxy} the
+   * whole story: unset means no proxy, and the fallbacks are there for whoever asks for them.
+   *
+   * <p>Package-private rather than private so {@code CortexS3ProxyTests} can assert that ambient
+   * settings really are ignored — {@link ProxyConfiguration#host()} is where the leak would show,
+   * and it is not reachable through a built {@link S3Client}.
+   *
+   * @param proxy the configured proxy settings
+   * @return the proxy configuration to apply to the client
+   */
+  static ProxyConfiguration proxyConfiguration(CortexProperties.S3.Proxy proxy) {
     ProxyConfiguration.Builder builder =
         ProxyConfiguration.builder()
-            .endpoint(URI.create(proxy.endpoint()))
-            .username(proxy.username())
-            .password(proxy.password());
+            .useSystemPropertyValues(proxy.useSystemPropertyValues())
+            .useEnvironmentVariableValues(proxy.useEnvironmentVariableValues());
+    if (proxy.username() != null) {
+      builder.username(proxy.username());
+    }
+    if (proxy.password() != null) {
+      builder.password(proxy.password());
+    }
+    if (proxy.endpoint() != null) {
+      builder.endpoint(URI.create(proxy.endpoint()));
+    }
     if (proxy.nonProxyHosts() != null && !proxy.nonProxyHosts().isEmpty()) {
       builder.nonProxyHosts(proxy.nonProxyHosts());
     }

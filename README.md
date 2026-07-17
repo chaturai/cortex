@@ -77,6 +77,10 @@ All properties are bound under the `cortex` prefix. `ontologies`, `shapes`, and 
 | `cortex.s3.proxy.username` | _(unset)_ | The proxy username, when it requires authentication. |
 | `cortex.s3.proxy.password` | _(unset)_ | The proxy password, when it requires authentication. |
 | `cortex.s3.proxy.nonProxyHosts` | _(unset)_ | Hosts to reach directly, bypassing the proxy. |
+| `cortex.s3.proxy.useSystemPropertyValues` | `false` | Fall back to the `http.proxyHost`/`https.proxyHost` family of JVM system properties for anything not set above. **The AWS SDK defaults this to `true`; Cortex does not** — see below. |
+| `cortex.s3.proxy.useEnvironmentVariableValues` | `false` | Fall back to the `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY` environment variables for anything not set above. **The AWS SDK defaults this to `true`; Cortex does not** — see below. |
+
+> **`cortex.s3.proxy` is the whole story.** The AWS SDK resolves proxy settings from JVM system properties and environment variables *by default*, so leaving `cortex.s3.proxy` unset would not mean "no proxy" — it would mean "whatever proxy the deployment environment happens to name", with backup uploads silently routed through it. Cortex therefore defaults both discovery settings to `false`: an unset proxy is genuinely no proxy. If you *want* the SDK's ambient discovery — a corporate network that sets `HTTPS_PROXY` globally, say — set the corresponding property to `true`.
 
 > **Single-JVM constraint:** when `cortex.persistent=true`, the TDB2 store is opened with `TDB2Factory.connectDataset`, which does not support two JVMs concurrently opening the same directory. Run one instance per persistent store directory.
 

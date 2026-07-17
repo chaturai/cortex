@@ -106,17 +106,32 @@ public record CortexProperties(
      * HTTP proxy settings for the S3 client.
      *
      * <p>The proxy is applied when {@code endpoint} is set; there is deliberately no separate
-     * enabling flag, so a configured proxy can never be silently ignored.
+     * enabling flag, so a configured proxy can never be silently ignored — and, by the same
+     * reasoning, an <em>unconfigured</em> proxy is never silently applied. That second half is why
+     * {@code useSystemPropertyValues} and {@code useEnvironmentVariableValues} both default to
+     * {@code false} here, where the AWS SDK defaults them to {@code true}: left at the SDK's
+     * defaults, an ambient {@code https.proxyHost} or {@code HTTPS_PROXY} in the deployment
+     * environment would silently route backups through a proxy that appears nowhere in this
+     * configuration. These settings determine the S3 client's proxy on their own.
      *
      * @param endpoint the proxy endpoint, for example {@code http://proxy.internal:3128}; when
-     *     unset, no proxy is used and every other component here is ignored
+     *     unset, no proxy is used unless one of the discovery settings below is enabled
      * @param username the proxy username, when it requires authentication
      * @param password the proxy password, when it requires authentication
      * @param nonProxyHosts hosts to reach directly, bypassing the proxy; when unset, everything
      *     goes through it
+     * @param useSystemPropertyValues whether to fall back to the {@code http.proxyHost}/{@code
+     *     https.proxyHost} family of JVM system properties for anything not set here
+     * @param useEnvironmentVariableValues whether to fall back to the {@code HTTP_PROXY}/{@code
+     *     HTTPS_PROXY}/{@code NO_PROXY} environment variables for anything not set here
      */
     public record Proxy(
-        String endpoint, String username, String password, Set<String> nonProxyHosts) {}
+        String endpoint,
+        String username,
+        String password,
+        Set<String> nonProxyHosts,
+        @DefaultValue("false") boolean useSystemPropertyValues,
+        @DefaultValue("false") boolean useEnvironmentVariableValues) {}
   }
 
   /**

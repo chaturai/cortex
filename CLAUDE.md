@@ -121,6 +121,15 @@ fails at `build()` with "Unable to load an HTTP implementation from any provider
 `apache-client` is a required dependency, and `CortexS3AutoConfiguration` names `ApacheHttpClient`
 explicitly rather than trusting classpath discovery. It's also what `cortex.s3.proxy` hangs off.
 
+**Not configuring a proxy is not the same as having no proxy.** `ApacheHttpClient.Builder` always
+holds a `ProxyConfiguration`, and the SDK's own defaults resolve `useSystemPropertyValues` and
+`useEnvironmentVariableValues` as `true` — so an ambient `https.proxyHost` or `HTTPS_PROXY` in the
+deployment environment silently routes every upload through a proxy named nowhere in `cortex.s3.*`.
+`CortexS3AutoConfiguration.proxyConfiguration` is therefore applied **unconditionally**, not only
+when `cortex.s3.proxy.endpoint` is set, and both discovery settings default to `false` — deliberately
+diverging from the SDK. Don't "simplify" it back to building the proxy only when an endpoint is
+configured; that reopens the leak. `CortexS3ProxyTests` pins it with real system properties set.
+
 **`cortex://` is reserved.** `CortexNamespace.NS` holds `cortex://provenance` and
 `cortex://branch-<uuid>`. User ontologies use their own namespace (the example uses
 `example://ontology#`). The schema plugin used to mandate the opposite — user instances at
