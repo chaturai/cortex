@@ -2,6 +2,7 @@ package ai.chatur.cortex.spring.web;
 
 import ai.chatur.cortex.CortexArchive;
 import ai.chatur.cortex.CortexBranches;
+import ai.chatur.cortex.CortexIngestor;
 import ai.chatur.cortex.CortexOntology;
 import ai.chatur.cortex.CortexQuery;
 import ai.chatur.cortex.CortexSearch;
@@ -25,7 +26,7 @@ import org.springframework.stereotype.Controller;
 
 /**
  * Web UI auto-configuration for Cortex: the Thymeleaf controllers that browse the graph, review and
- * edit pending branches, and back up or restore the assertions dataset.
+ * edit pending branches, export the approved assertions, and stage an uploaded document for review.
  *
  * <p>Runs {@link AutoConfiguration#after() after} {@link CortexAutoConfiguration}, so every
  * controller here can depend on the role interfaces the core beans satisfy.
@@ -90,15 +91,17 @@ public class CortexWebAutoConfiguration {
   }
 
   /**
-   * Creates the controller for backing up and restoring the assertions dataset.
+   * Creates the controller for exporting the approved assertions and importing a Turtle document
+   * back in for review.
    *
-   * @param archive the archive role used to export and restore the assertions dataset
+   * @param archive the archive role used to export the approved assertions
+   * @param ingestor the ingestor role an uploaded document is staged through
    * @return the archive controller
    */
   @Bean
   @ConditionalOnMissingBean
-  ArchiveController archiveController(CortexArchive archive) {
-    return new ArchiveController(archive);
+  ArchiveController archiveController(CortexArchive archive, CortexIngestor ingestor) {
+    return new ArchiveController(archive, ingestor);
   }
 
   /**

@@ -251,7 +251,7 @@ public class CortexAutoConfiguration {
   }
 
   /**
-   * Creates the service exporting and restoring the assertions dataset for backup.
+   * Creates the service exporting the approved assertions.
    *
    * @param assertions the assertions dataset
    * @return the archive service
@@ -379,7 +379,7 @@ public class CortexAutoConfiguration {
    * @param branchQueryService reading the assertions staged on a branch
    * @param branchEditService reviewer edits to a branch
    * @param branchMergeService approving or rejecting a branch
-   * @param archiveService backup and restore of the assertions dataset
+   * @param archiveService export of the approved assertions
    * @param inferenceService rule-based inference over the approved assertions
    * @param queryService SPARQL queries and full-text search
    * @param statsService knowledge graph statistics

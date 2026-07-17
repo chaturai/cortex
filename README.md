@@ -19,7 +19,8 @@ Adding the starter auto-configures a complete knowledge graph memory for your Sp
 - **Full-text search** — a Lucene index over `rdfs:label` and `rdfs:comment` (`rdf:type` is mapped as well, but Jena's text index only indexes literal values, so type IRIs are skipped).
 - **An MCP server** — tools and resources that let AI agents read and write the graph (see below).
 - **A web UI** — pages to explore the graph, search it from the navbar, and review, edit, and approve pending branches (see below).
-- **Backup and restore** — the entire assertions dataset (approved assertions and every staged branch) can be downloaded as a TriG file from `/export` and restored from `/import`.
+- **Export and import** — the approved assertions can be downloaded as a Turtle file from `/export`, and a Turtle document can be uploaded at `/import`, which stages it on a branch for review like any other ingest rather than replacing the graph.
+- **Scheduled backups to S3** — a Quartz job periodically snapshots the whole assertions dataset with TDB2's own backup and uploads it to S3 or any S3-compatible store (see below). Off by default.
 
 ## Requirements
 
@@ -61,8 +62,61 @@ All properties are bound under the `cortex` prefix. `ontologies`, `shapes`, and 
 | `cortex.rules` | `classpath:ontology.rules` | The Jena rules used for inference, concatenated in order. |
 | `cortex.web.enabled` | `true` | Whether the web UI controllers are registered. Set to `false` to get the knowledge graph without the UI, without excluding individual controller beans. |
 | `cortex.mcp.enabled` | `true` | Whether the MCP tools and resources are registered. Set to `false` to get the knowledge graph without an MCP server, without excluding individual tool beans. |
+| `cortex.backup.enabled` | `false` | Whether the scheduled backup job is registered. See [Scheduled backups](#scheduled-backups) — enabling it requires `cortex.persistent=true`, an enabled S3 client, and two extra dependencies. |
+| `cortex.backup.interval` | `24h` | How often a backup is taken. The first runs one interval **after** startup, not at startup, so restarts do not each leave a backup behind. |
+| `cortex.backup.keyPrefix` | `cortex/` | Prepended verbatim to the backup's file name to form the S3 object key. Include a trailing `/` to group the objects under a folder. |
+| `cortex.s3.enabled` | `false` | Whether the `S3Client` bean is registered. Independent of `cortex.backup.enabled`, though backups require it. |
+| `cortex.s3.endpoint` | _(unset)_ | The S3 endpoint, e.g. `http://localhost:9000` for MinIO. When unset, the AWS endpoint for the region is used. |
+| `cortex.s3.bucket` | _(unset)_ | The bucket backups are uploaded to. Required when backups are enabled. |
+| `cortex.s3.region` | `us-east-1` | The region to sign for. The SDK requires one even against S3-compatible stores that ignore it. |
+| `cortex.s3.auth` | `default` | How the client authenticates: `default` (the AWS credential chain — environment, profile file, container and instance credentials), `static` (the key and secret below), or `anonymous` (no credentials, for an unauthenticated S3-compatible endpoint). |
+| `cortex.s3.accessKeyId` | _(unset)_ | The access key. Required when `cortex.s3.auth=static`, ignored otherwise. |
+| `cortex.s3.secretAccessKey` | _(unset)_ | The secret key. Required when `cortex.s3.auth=static`, ignored otherwise. |
+| `cortex.s3.pathStyleAccess` | `false` | Address buckets as a path segment (`endpoint/bucket/key`) rather than a subdomain. MinIO and most S3-compatible stores need this. |
+| `cortex.s3.proxy.endpoint` | _(unset)_ | The HTTP proxy to reach S3 through, e.g. `http://proxy.internal:3128`. Setting it is what enables the proxy; there is no separate flag, so a configured proxy can never be silently ignored. |
+| `cortex.s3.proxy.username` | _(unset)_ | The proxy username, when it requires authentication. |
+| `cortex.s3.proxy.password` | _(unset)_ | The proxy password, when it requires authentication. |
+| `cortex.s3.proxy.nonProxyHosts` | _(unset)_ | Hosts to reach directly, bypassing the proxy. |
 
 > **Single-JVM constraint:** when `cortex.persistent=true`, the TDB2 store is opened with `TDB2Factory.connectDataset`, which does not support two JVMs concurrently opening the same directory. Run one instance per persistent store directory.
+
+## Scheduled backups
+
+A Quartz job can periodically snapshot the whole assertions dataset — the approved assertions, every staged branch, and the provenance graph — and upload it to S3. The snapshot is TDB2's own `DatabaseMgr.backup`: gzipped N-Quads, taken inside a read transaction, so it is a consistent snapshot that does **not** lock out concurrent ingestion or approval.
+
+This is the real backup mechanism. `/export` is not — it carries only the approved assertions, for reading and sharing.
+
+Backups are off by default, so the starter does not bring the dependencies they need. To switch them on, add:
+
+```kotlin
+implementation(platform("software.amazon.awssdk:bom:2.46.7"))
+implementation("software.amazon.awssdk:s3")
+implementation("software.amazon.awssdk:apache-client")
+implementation("org.springframework.boot:spring-boot-starter-quartz")
+```
+
+`apache-client` is not optional: the `s3` artifact declares the synchronous HTTP clients at *test* scope and ships only the asynchronous Netty one, so without it the synchronous `S3Client` fails to build. It is also what backs `cortex.s3.proxy`.
+
+Then configure it — this example targets a local MinIO with no authentication:
+
+```yaml
+cortex:
+  persistent: true
+  backup:
+    enabled: true
+    interval: 6h
+  s3:
+    enabled: true
+    endpoint: http://localhost:9000
+    bucket: cortex-backups
+    region: us-east-1
+    auth: anonymous
+    path-style-access: true
+```
+
+> **Backups require `cortex.persistent=true`.** A TDB2 backup is an admin operation on an on-disk store; the in-memory store used by default has no location to write a backup beside. Enabling backups without persistence **fails at startup** rather than booting an application that reports healthy and never backs anything up. The same is true of a missing bucket, missing static credentials, a non-positive interval, and the dependencies above.
+
+Backup files accumulate under `<cortex.assertionsLocation>/Backups/` and are never deleted: the upload is a copy, not a move, so a bucket misconfiguration can never destroy data. Pruning them is left to whatever manages that volume — or to an S3 lifecycle rule for the uploaded copies.
 
 ## Modules
 
@@ -126,8 +180,18 @@ The starter also serves a small UI for exploring the graph and reviewing what ag
 | `/search?q={text}` | Fuzzy full-text search results — matching resources linked to their describe pages, with the matched text alongside. |
 | `/branches` | The branches staged by ingestion and awaiting review, each with its provenance activity rendered as badges: `prov:Activity`, when it was staged, and how many triples it carries. |
 | `/branches/{branch}` | The assertions staged on a branch, grouped by subject with each statement shown as on the describe page. Reviewers can delete statements, edit objects, and rename subjects inline; changes stay in the browser until **Save changes** pushes them to the staged graph as an RDF patch (`POST /branches/{branch}/update` for deletions and object edits, `POST /branches/{branch}/rename` for subject renames — both JSON), and **Reset** discards them. **Approve** (`POST /branches/{branch}/approve` — merge into the graph with provenance, extending inference incrementally) and **Reject** (`POST /branches/{branch}/reject` — discard the branch) sit in the top-right corner. |
-| `/export` | Downloads the entire assertions dataset — the approved assertions and every staged branch — as a dated `cortex-assertions-<date>.trig` file. |
-| `/import` (`POST`, multipart `file`) | Restores the assertions dataset from a file previously downloaded from `/export`. |
+| `/export` | Downloads the approved assertions as a dated `cortex-assertions-<date>.ttl` file. Instance data only: staged branches and provenance are excluded, and so is the ontology. |
+| `/import` (`POST`, multipart `file`) | Stages an uploaded Turtle document on a branch for review. **This is not a restore** — the upload goes through `ingest`, so it is linted, SHACL-validated, and reduced to what is novel, then lands on `/branches` for a human to approve. Re-importing a file from `/export` therefore stages nothing, since every statement in it is already approved. |
+
+## Migrating to 0.1.1
+
+`0.1.1` changes what `/export` and `/import` mean. Cortex is pre-1.0, so the following were changed rather than deprecated:
+
+- **`CortexArchive.importAssertions(String)` removed.** `/import` no longer restores a dataset — it stages the upload for review through `ingest`. The destructive whole-dataset restore is gone with it, and the replacement for it is the [scheduled backup](#scheduled-backups), which captures strictly more (staged branches and provenance, not just approved assertions). To restore one, stop the application and load the `.nq.gz` into the store with Jena's `tdb2.tdbloader`.
+- **`CortexArchive.getAssertions()` removed.** It served the approved assertions as TriG and had no caller; `exportAssertions()` now returns exactly that, as Turtle.
+- **`CortexArchive.exportAssertions()` returns Turtle, not TriG, and only the approved assertions.** It previously serialized the entire dataset — every staged branch and the provenance graph included. `/export` accordingly serves `cortex-assertions-<date>.ttl` as `text/turtle` rather than `.trig` as `application/trig`.
+- **`/import` accepts `.ttl` only, and no longer replaces the graph.** An uploaded document is linted, SHACL-validated, reduced to what is novel, and staged on a branch; the browser lands on `/branches`. A `.trig` upload is rejected with an explanation. Anything automating the old restore behaviour must change: an import can now be **rejected** by a reviewer, and never overwrites what is already approved.
+- **Approving a branch redirects to `/branches`, not `/assertions`.** Update any UI automation following that redirect.
 
 ## Migrating to 0.1.0
 

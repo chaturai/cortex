@@ -124,7 +124,7 @@ class EndToEndIntegrationTests {
       // The reviewer approves the branch
       HttpResponse<String> approved = postForm("/branches/" + branch + "/approve");
       assertThat(approved.statusCode())
-          .as("approving redirects (3xx) to /assertions")
+          .as("approving redirects (3xx) to /branches")
           .isBetween(300, 399);
       String branchesAfterApprove = get("/branches");
       assertThat(branchesAfterApprove)
@@ -183,27 +183,42 @@ class EndToEndIntegrationTests {
         http.send(exportRequest, HttpResponse.BodyHandlers.ofString());
     assertThat(exportResponse.statusCode()).isEqualTo(200);
     assertThat(exportResponse.headers().firstValue("Content-Type"))
-        .hasValueSatisfying(contentType -> assertThat(contentType).contains("application/trig"));
+        .hasValueSatisfying(contentType -> assertThat(contentType).contains("text/turtle"));
     assertThat(exportResponse.headers().firstValue("Content-Disposition"))
         .as("the download names the file as an attachment")
         .hasValueSatisfying(
             disposition -> {
               assertThat(disposition).contains("attachment");
-              assertThat(disposition).matches(".*filename=\"cortex-assertions-.*\\.trig\".*");
+              assertThat(disposition).matches(".*filename=\"cortex-assertions-.*\\.ttl\".*");
             });
-    String backup = exportResponse.body();
-    assertThat(backup).contains("ArchiveTask");
+    String exported = exportResponse.body();
+    assertThat(exported).contains("ArchiveTask");
+
+    // Counted rather than asserted absolutely: every test in this class shares one context, and so
+    // one dataset, and a sibling may legitimately have branches pending.
+    long branchesBeforeImport = countBranches(get("/branches"));
 
     HttpResponse<String> importResponse =
-        postMultipartFile("/import", "file", "backup.trig", "application/trig", backup);
+        postMultipartFile("/import", "file", "assertions.ttl", "text/turtle", exported);
     assertThat(importResponse.statusCode())
-        .as("importing redirects (3xx) to /assertions")
+        .as("importing redirects (3xx) to /branches")
         .isBetween(300, 399);
+
+    // The round trip still holds, but for a different reason than when /import was a destructive
+    // restore: an export is now instance data that is already approved, so ingest finds nothing
+    // novel in it, stages no branch, and leaves the graph exactly as it was.
+    assertThat(countBranches(get("/branches")))
+        .as("re-importing an export stages no branch: every statement in it is already approved")
+        .isEqualTo(branchesBeforeImport);
 
     HttpResponse<String> reExport = http.send(exportRequest, HttpResponse.BodyHandlers.ofString());
     assertThat(reExport.body())
-        .as("the imported backup replaced the dataset with byte-for-byte the same content")
-        .isEqualTo(backup);
+        .as("re-importing an export leaves the approved assertions byte-for-byte unchanged")
+        .isEqualTo(exported);
+  }
+
+  private static long countBranches(String branchesPage) {
+    return Pattern.compile("class=\"branch-link\"").matcher(branchesPage).results().count();
   }
 
   /**

@@ -24,10 +24,13 @@ import org.slf4j.LoggerFactory;
  * validated ingestion, {@link BranchRepository} for branch existence and listing, {@link
  * BranchQueryService} for reading a branch pending review, {@link BranchEditService} for reviewer
  * edits to a branch, {@link BranchMergeService} for approving or rejecting a branch, {@link
- * ArchiveService} for backup and restore, {@link InferenceService} for rule-based inference, {@link
- * QueryService} for SPARQL queries and full-text search, and {@link StatsService} for statistics.
- * Approving a branch extends the inference closure incrementally with the newly approved
- * statements.
+ * ArchiveService} for exporting the approved assertions, {@link InferenceService} for rule-based
+ * inference, {@link QueryService} for SPARQL queries and full-text search, and {@link StatsService}
+ * for statistics. Approving a branch extends the inference closure incrementally with the newly
+ * approved statements.
+ *
+ * <p>Backing the store up is deliberately not part of this surface — see {@link
+ * ai.chatur.cortex.core.store.BackupService}.
  */
 public class JenaCortex implements Cortex {
 
@@ -55,7 +58,7 @@ public class JenaCortex implements Cortex {
    * @param branchQueryService reading the assertions staged on a branch
    * @param branchEditService reviewer edits to a branch
    * @param branchMergeService approving or rejecting a branch
-   * @param archiveService backup and restore of the assertions dataset
+   * @param archiveService export of the approved assertions
    * @param inferenceService rule-based inference over the approved assertions
    * @param queryService SPARQL queries and full-text search
    * @param statsService knowledge graph statistics
@@ -177,19 +180,8 @@ public class JenaCortex implements Cortex {
   }
 
   @Override
-  public String getAssertions() {
-    return archiveService.getAssertions();
-  }
-
-  @Override
   public String exportAssertions() {
     return archiveService.exportAssertions();
-  }
-
-  @Override
-  public void importAssertions(String trig) {
-    archiveService.importAssertions(trig);
-    inferenceService.recomputeInference();
   }
 
   @Override

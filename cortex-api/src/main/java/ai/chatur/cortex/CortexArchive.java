@@ -1,30 +1,21 @@
 package ai.chatur.cortex;
 
-/** Exports and restores the assertions dataset for backup. */
+/** Exports the approved assertions as a portable RDF document. */
 public interface CortexArchive {
 
   /**
-   * Returns all approved assertions in the knowledge graph.
+   * Exports the approved assertions — the knowledge graph as it stands after review.
    *
-   * @return the assertions serialized in TriG syntax
-   */
-  String getAssertions();
-
-  /**
-   * Exports the entire assertions dataset — the approved assertions and every staged branch — for
-   * backup.
+   * <p>Only approved statements are exported: assertions still staged on a branch, and the
+   * provenance recorded for approved ones, are both excluded. The result is therefore a plain
+   * instance-data document, expressed in terms of {@link CortexOntology#getOntology() the ontology}
+   * but not carrying it, which can be read, diffed, or fed back through {@link
+   * CortexIngestor#ingest(String) ingest}.
    *
-   * @return the dataset serialized in TriG syntax
+   * <p>For backing the graph up, see {@link CortexBackup#backup()}, which captures the whole
+   * dataset — staged branches and provenance included — rather than just the approved assertions.
+   *
+   * @return the approved assertions serialized in Turtle syntax
    */
   String exportAssertions();
-
-  /**
-   * Restores the assertions dataset from an {@link #exportAssertions() exported backup}, replacing
-   * the approved assertions and every staged branch, and recomputes inference.
-   *
-   * <p>If the backup cannot be parsed, the dataset is left untouched.
-   *
-   * @param trig the backup, a dataset serialized in TriG syntax
-   */
-  void importAssertions(String trig);
 }

@@ -5,6 +5,8 @@
     <nav th:replace="~{fragments :: navbar}"></nav>
     <main>
       <div class="branches-container">
+        <p class="branches-notice" th:if="${importNotice}" th:text="${importNotice}"></p>
+        <pre class="branches-error" th:if="${importError}" th:text="${importError}"></pre>
         <div class="branches-list">
           <div class="branch-item" th:each="branch : ${branches}">
             <a class="branch-link" th:href="@{/branches/{branch}(branch=${branch.name})}" th:text="${branch.name}"></a>
