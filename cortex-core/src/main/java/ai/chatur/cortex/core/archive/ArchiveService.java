@@ -25,7 +25,7 @@ public class ArchiveService {
    * named graphs — are excluded. The default graph's prefixes are seeded from the ontology when the
    * store is opened, so the Turtle comes out abbreviated the same way the ontology is.
    *
-   * <p>This is not a backup: see {@link ai.chatur.cortex.core.backup.BackupService#backup()} for
+   * <p>This is not a backup: see {@link ai.chatur.cortex.core.store.BackupService#backup()} for
    * that.
    *
    * @return the approved assertions serialized in Turtle syntax

@@ -1,5 +1,6 @@
 package ai.chatur.cortex.core.store;
 
+import ai.chatur.cortex.CortexBackup;
 import org.apache.jena.query.Dataset;
 import org.apache.jena.tdb2.DatabaseMgr;
 import org.slf4j.Logger;
@@ -24,7 +25,7 @@ import org.slf4j.LoggerFactory;
  * operations"}) when the dataset has no container path — exactly the case for the in-memory store
  * {@link AssertionStore#open} returns when {@code persistent} is {@code false}.
  */
-public class BackupService {
+public class BackupService implements CortexBackup {
 
   private static final Logger log = LoggerFactory.getLogger(BackupService.class);
 
