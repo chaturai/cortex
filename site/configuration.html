@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Configuration — Cortex</title>
+  <meta name="description" content="Every cortex.* configuration property, plus scheduled backups to S3, restore-on-startup, and the S3 client and proxy settings.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🧠</text></svg>">
+  <link rel="stylesheet" href="css/cortex.css">
+</head>
+<body>
+  <header class="site-nav">
+    <div class="nav-inner">
+      <a class="navbar-brand" href="index.html">CORTEX</a>
+      <button class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+      <ul class="nav-links">
+        <li><a href="architecture.html">Architecture</a></li>
+        <li><a href="getting-started.html">Getting started</a></li>
+        <li><a href="mcp.html">MCP server</a></li>
+        <li><a href="configuration.html" class="active">Configuration</a></li>
+        <li><a class="ext" href="api/index.html">API</a></li>
+        <li><a class="ext" href="https://github.com/chaturai/cortex">GitHub</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <main class="doc">
+    <div class="container">
+      <h1>Configuration</h1>
+      <p class="lead">All properties bind under the <code>cortex</code> prefix.
+        <code>ontologies</code>, <code>shapes</code>, and <code>rules</code> each accept a list of
+        <code>classpath:</code>/<code>file:</code> resources, merged in order.</p>
+
+      <h2 id="core">Core</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Property</th><th>Default</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>cortex.persistent</code></td><td><code>false</code></td><td>Persist approved assertions to a TDB2 store on disk. When <code>false</code>, held in an in-memory TDB2 dataset. Either way the inference closure and full-text index are always an in-memory cache, rebuilt on every startup.</td></tr>
+            <tr><td><code>cortex.assertionsLocation</code></td><td><code>.cortex/db</code></td><td>Directory of the TDB2 store, used only when <code>cortex.persistent=true</code>.</td></tr>
+            <tr><td><code>cortex.ontologies</code></td><td><code>classpath:ontology.ttl</code></td><td>The ontologies the graph is built on (Turtle), merged in order.</td></tr>
+            <tr><td><code>cortex.shapes</code></td><td><code>classpath:ontology.shapes</code></td><td>The SHACL shapes ingested assertions are validated against, merged in order.</td></tr>
+            <tr><td><code>cortex.rules</code></td><td><code>classpath:ontology.rules</code></td><td>The Jena rules used for inference, concatenated in order.</td></tr>
+            <tr><td><code>cortex.web.enabled</code></td><td><code>true</code></td><td>Register the web UI controllers. Set <code>false</code> for the graph without the UI.</td></tr>
+            <tr><td><code>cortex.mcp.enabled</code></td><td><code>true</code></td><td>Register the MCP tools and resources. Set <code>false</code> for the graph without an MCP server.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout warn">
+        <strong>Single-JVM constraint.</strong> When <code>cortex.persistent=true</code>, the TDB2 store
+        is opened with <code>TDB2Factory.connectDataset</code>, which does not support two JVMs opening
+        the same directory. Run one instance per persistent store directory.
+      </div>
+
+      <h2 id="s3">S3 client</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Property</th><th>Default</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>cortex.s3.enabled</code></td><td><code>false</code></td><td>Register the <code>S3Client</code> bean. Independent of backup and restore, though both require it.</td></tr>
+            <tr><td><code>cortex.s3.endpoint</code></td><td><em>unset</em></td><td>The S3 endpoint, e.g. <code>http://localhost:9000</code> for MinIO. When unset, the AWS endpoint for the region is used.</td></tr>
+            <tr><td><code>cortex.s3.bucket</code></td><td><em>unset</em></td><td>The bucket backups are uploaded to. Required when backups are enabled.</td></tr>
+            <tr><td><code>cortex.s3.region</code></td><td><code>us-east-1</code></td><td>The region to sign for. Required by the SDK even against S3-compatible stores that ignore it.</td></tr>
+            <tr><td><code>cortex.s3.auth</code></td><td><code>default</code></td><td><code>default</code> (AWS credential chain), <code>static</code> (the key/secret below), or <code>anonymous</code> (no credentials).</td></tr>
+            <tr><td><code>cortex.s3.accessKeyId</code></td><td><em>unset</em></td><td>Access key. Required when <code>auth=static</code>.</td></tr>
+            <tr><td><code>cortex.s3.secretAccessKey</code></td><td><em>unset</em></td><td>Secret key. Required when <code>auth=static</code>.</td></tr>
+            <tr><td><code>cortex.s3.pathStyleAccess</code></td><td><code>false</code></td><td>Address buckets as a path segment (<code>endpoint/bucket/key</code>) rather than a subdomain. MinIO and most S3-compatible stores need this.</td></tr>
+            <tr><td><code>cortex.s3.proxy.endpoint</code></td><td><em>unset</em></td><td>HTTP proxy to reach S3 through. Setting it is what enables the proxy — there is no separate flag.</td></tr>
+            <tr><td><code>cortex.s3.proxy.username</code> / <code>password</code></td><td><em>unset</em></td><td>Proxy credentials, when it requires authentication.</td></tr>
+            <tr><td><code>cortex.s3.proxy.nonProxyHosts</code></td><td><em>unset</em></td><td>Hosts to reach directly, bypassing the proxy.</td></tr>
+            <tr><td><code>cortex.s3.proxy.useSystemPropertyValues</code></td><td><code>false</code></td><td>Fall back to the <code>http(s).proxyHost</code> JVM properties. <strong>The AWS SDK defaults this to <code>true</code>; Cortex does not.</strong></td></tr>
+            <tr><td><code>cortex.s3.proxy.useEnvironmentVariableValues</code></td><td><code>false</code></td><td>Fall back to <code>HTTP_PROXY</code>/<code>HTTPS_PROXY</code>/<code>NO_PROXY</code>. <strong>The AWS SDK defaults this to <code>true</code>; Cortex does not.</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout warn">
+        <strong>An unset proxy is genuinely no proxy.</strong> The AWS SDK resolves proxy settings from
+        JVM system properties and environment variables by default, so an ambient <code>HTTPS_PROXY</code>
+        would otherwise silently route uploads through a proxy named nowhere in <code>cortex.s3.*</code>.
+        Cortex defaults both discovery flags to <code>false</code>. Set them to <code>true</code> if you
+        <em>want</em> the SDK's ambient discovery.
+      </div>
+
+      <h2 id="backups">Scheduled backups</h2>
+      <p>A Quartz job periodically snapshots the <em>whole</em> assertions dataset — approved
+        assertions, every staged branch, and the provenance graph — via TDB2's own
+        <code>DatabaseMgr.backup</code> (gzipped N-Quads, taken inside a read transaction, so it does
+        not lock out ingestion or approval) and uploads it to S3. This is the real backup mechanism;
+        <code>/export</code> is not.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Property</th><th>Default</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>cortex.backup.enabled</code></td><td><code>false</code></td><td>Register the scheduled backup job.</td></tr>
+            <tr><td><code>cortex.backup.interval</code></td><td><code>24h</code></td><td>How often a backup is taken. The first runs one interval <em>after</em> startup, not at startup.</td></tr>
+            <tr><td><code>cortex.backup.keyPrefix</code></td><td><code>cortex/</code></td><td>Prepended to the backup file name to form the S3 object key. Include a trailing <code>/</code> to group under a folder.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Backups are off by default, so the starter does not bring their dependencies. Add:</p>
+      <div class="code-block">
+        <span class="code-lang">Gradle</span>
+        <pre><code>implementation(platform("software.amazon.awssdk:bom:2.46.7"))
+implementation("software.amazon.awssdk:s3")
+implementation("software.amazon.awssdk:apache-client")
+implementation("org.springframework.boot:spring-boot-starter-quartz")</code></pre>
+      </div>
+      <p><code>apache-client</code> is not optional: the <code>s3</code> artifact ships only the async
+        Netty HTTP client, so without it the synchronous <code>S3Client</code> fails to build. Then
+        configure it — this targets a local MinIO with no authentication:</p>
+      <div class="code-block">
+        <span class="code-lang">application.yaml</span>
+        <pre><code>cortex:
+  persistent: true
+  backup:
+    enabled: true
+    interval: 6h
+  s3:
+    enabled: true
+    endpoint: http://localhost:9000
+    bucket: cortex-backups
+    region: us-east-1
+    auth: anonymous
+    path-style-access: true</code></pre>
+      </div>
+      <div class="callout warn">
+        <strong>Backups require <code>cortex.persistent=true</code>.</strong> A TDB2 backup is an admin
+        operation on an on-disk store; enabling backups without persistence — or with a missing bucket,
+        missing static credentials, a non-positive interval, or the dependencies above — <em>fails at
+        startup</em> rather than booting an app that reports healthy and never backs anything up.
+      </div>
+      <p class="text-muted">Local backup files accumulate under
+        <code>&lt;cortex.assertionsLocation&gt;/Backups/</code> and are never deleted — the upload is a
+        copy, not a move, so a bucket misconfiguration can never destroy data. Pruning is left to the
+        volume, or to an S3 lifecycle rule.</p>
+
+      <h2 id="restore">Restore on startup</h2>
+      <p>The inverse of a backup: on boot, download the most recent backup from S3 and load it into the
+        store <em>before the application serves traffic</em>, so an instance whose local disk was
+        replaced comes up with its data. The inference closure and index rebuild from the restored
+        assertions as usual.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Property</th><th>Default</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td><code>cortex.restore.enabled</code></td><td><code>false</code></td><td>Download the latest backup under <code>cortex.restore.keyPrefix</code> and load it at startup.</td></tr>
+            <tr><td><code>cortex.restore.keyPrefix</code></td><td><code>cortex/</code></td><td>The S3 key prefix to look for backups under. Set it to match <code>cortex.backup.keyPrefix</code> if you customize that.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Restore needs <code>software.amazon.awssdk:s3</code> and <code>apache-client</code> plus an
+        enabled S3 client (Quartz is <em>not</em> needed — restore uses no scheduler):</p>
+      <div class="code-block">
+        <span class="code-lang">application.yaml</span>
+        <pre><code>cortex:
+  persistent: true
+  restore:
+    enabled: true
+  s3:
+    enabled: true
+    endpoint: http://localhost:9000
+    bucket: cortex-backups
+    region: us-east-1
+    auth: anonymous
+    path-style-access: true</code></pre>
+      </div>
+      <div class="callout warn">
+        <strong>A restore is destructive by design.</strong> It is a wipe-and-load that runs on every
+        boot — it clears the local store and loads the latest backup over it, restoring approved
+        assertions, staged branches, and provenance at full fidelity. Any local writes not yet captured
+        by a backup are lost on the next boot. An empty bucket (a first-ever deploy) is <em>not</em> an
+        error — it logs and starts empty; every other misconfiguration fails the context. Leave it
+        <code>false</code> if S3 is not your source of truth.
+      </div>
+      <p>The switch is independent of <code>cortex.backup.enabled</code>: an instance may restore from
+        another's uploads without scheduling backups of its own, or do both.</p>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container container-wide footer-inner">
+      <div>Cortex — ontology-grounded knowledge graph memory. Apache-2.0.</div>
+      <nav class="footer-links">
+        <a href="architecture.html">Architecture</a>
+        <a href="getting-started.html">Getting started</a>
+        <a href="mcp.html">MCP server</a>
+        <a href="configuration.html">Configuration</a>
+        <a href="api/index.html">API</a>
+        <a href="https://github.com/chaturai/cortex">GitHub</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="js/site.js"></script>
+</body>
+</html>

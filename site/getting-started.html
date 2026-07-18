@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Getting started — Cortex</title>
+  <meta name="description" content="Add the Cortex starter to a Spring Boot app, supply your ontology, shapes, and rules, run it, and make your first reviewed ingestion.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🧠</text></svg>">
+  <link rel="stylesheet" href="css/cortex.css">
+</head>
+<body>
+  <header class="site-nav">
+    <div class="nav-inner">
+      <a class="navbar-brand" href="index.html">CORTEX</a>
+      <button class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+      <ul class="nav-links">
+        <li><a href="architecture.html">Architecture</a></li>
+        <li><a href="getting-started.html" class="active">Getting started</a></li>
+        <li><a href="mcp.html">MCP server</a></li>
+        <li><a href="configuration.html">Configuration</a></li>
+        <li><a class="ext" href="api/index.html">API</a></li>
+        <li><a class="ext" href="https://github.com/chaturai/cortex">GitHub</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <main class="doc">
+    <div class="container">
+      <h1>Getting started</h1>
+      <p class="lead">From an empty Spring Boot project to an ontology-grounded knowledge graph with a
+        web UI and an MCP server, in five steps.</p>
+
+      <div class="callout">
+        <strong>Prerequisites.</strong> JDK 21 or newer and Spring Boot 4.0 or newer.
+      </div>
+
+      <ol class="steps">
+        <li>
+          <h3>Add the starter</h3>
+          <p>One dependency brings the <code>Cortex</code> bean, the web UI, and the MCP server (plus
+            the Spring MVC and Thymeleaf dependencies the UI needs).</p>
+          <div class="code-block">
+            <span class="code-lang">Gradle</span>
+            <pre><code>implementation("ai.chatur:cortex-spring-boot-starter:0.1.1")</code></pre>
+          </div>
+          <div class="code-block">
+            <span class="code-lang">Maven</span>
+            <pre><code>&lt;dependency&gt;
+  &lt;groupId&gt;ai.chatur&lt;/groupId&gt;
+  &lt;artifactId&gt;cortex-spring-boot-starter&lt;/artifactId&gt;
+  &lt;version&gt;0.1.1&lt;/version&gt;
+&lt;/dependency&gt;</code></pre>
+          </div>
+        </li>
+
+        <li id="schema">
+          <h3>Supply your ontology, shapes, and rules</h3>
+          <p>Cortex is grounded in <em>your</em> vocabulary. Put three resources on the classpath
+            (defaults shown; each property accepts a list merged in order):</p>
+          <ul>
+            <li><code>src/main/resources/ontology.ttl</code> — your OWL classes and properties.</li>
+            <li><code>src/main/resources/ontology.shapes</code> — SHACL shapes ingested data must satisfy.</li>
+            <li><code>src/main/resources/ontology.rules</code> — Jena rules for inference.</li>
+          </ul>
+          <p>A snippet of the example ontology (namespace <code>example://ontology#</code>):</p>
+          <div class="code-block">
+            <span class="code-lang">ontology.ttl</span>
+            <pre><code>@prefix owl:  &lt;http://www.w3.org/2002/07/owl#&gt; .
+@prefix rdfs: &lt;http://www.w3.org/2000/01/rdf-schema#&gt; .
+@prefix :     &lt;example://ontology#&gt; .
+
+:Rule a owl:Class ;
+    rdfs:label "Rule" ;
+    rdfs:comment "A rule that can be activated or blocked by conditions and performs actions." .
+
+:Condition a owl:Class ;
+    rdfs:label "Condition" ;
+    rdfs:comment "A condition evaluated to determine rule activation or blocking." .</code></pre>
+          </div>
+          <div class="callout note">
+            <strong>Don't want to hand-write RDF?</strong> The repository ships
+            <strong>cortex-schema</strong>, a Claude Code plugin whose
+            <code>/generate-cortex-resources</code> skill authors a mutually-consistent
+            <code>ontology.ttl</code>, <code>ontology.shapes</code>, and <code>ontology.rules</code>
+            from a plain-English description. Add it as a marketplace and install:
+            <div class="code-block mt-2">
+              <span class="code-lang">Claude Code</span>
+              <pre><code>/plugin marketplace add ./cortex-schema-plugin
+/plugin install cortex-schema@cortex-schema
+/generate-cortex-resources</code></pre>
+            </div>
+          </div>
+        </li>
+
+        <li>
+          <h3>Write a standard Spring Boot application</h3>
+          <p>No Cortex-specific code is required — the starter auto-configures everything.</p>
+          <div class="code-block">
+            <span class="code-lang">Java</span>
+            <pre><code>@SpringBootApplication
+public class MyApplication {
+  public static void main(String[] args) {
+    SpringApplication.run(MyApplication.class, args);
+  }
+}</code></pre>
+          </div>
+          <p>Then configure Cortex. This mirrors the shipped example — persistent on disk, two merged
+            ontologies, and the MCP server in stateless/sync mode:</p>
+          <div class="code-block">
+            <span class="code-lang">application.yaml</span>
+            <pre><code>spring:
+  ai:
+    mcp:
+      server:
+        protocol: stateless
+        type: sync
+        instructions: Use this MCP for knowledge graph operations. Load cortex://ontology resource on connection
+cortex:
+  persistent: true
+  ontologies:
+    - classpath:ontology.ttl
+    - classpath:skos.ttl
+  shapes:
+    - classpath:ontology.shapes
+  rules:
+    - classpath:ontology.rules</code></pre>
+          </div>
+          <p>See the <a href="configuration.html">Configuration reference</a> for every property.</p>
+        </li>
+
+        <li>
+          <h3>Run it</h3>
+          <p>Start the app the usual way — it serves on port <code>8080</code>: the web UI at
+            <code>/</code> and the MCP server at <code>/mcp</code>.</p>
+          <div class="code-block">
+            <span class="code-lang">Shell</span>
+            <pre><code># the shipped example
+./gradlew :cortex-spring-boot-starter-example:bootRun
+
+# or your own app
+./gradlew bootRun</code></pre>
+          </div>
+        </li>
+
+        <li>
+          <h3>Make your first (reviewed) ingestion</h3>
+          <p>Point an MCP client at <code>http://localhost:8080/mcp</code> and ask the agent to add some
+            facts. Under the hood it will <strong>Lint</strong>, then <strong>Ingest</strong> — which
+            stages the novel triples on a branch. Open <code>/branches</code>, review the staged
+            statements, and click <strong>Approve</strong> to merge them (or <strong>Reject</strong> to
+            discard). Only then do they become queryable. See the
+            <a href="mcp.html">MCP server guide</a> for client setup and the full tool list.</p>
+        </li>
+      </ol>
+
+      <h2 id="web-ui">Web UI routes</h2>
+      <p>The starter serves these pages. The navbar carries a search box — press Enter to search.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Route</th><th>What it shows</th></tr></thead>
+          <tbody>
+            <tr><td><code>/</code></td><td>Home — statistics: triples added today, pending branches, asserted and inferred triples, ontology classes, shapes, and rules.</td></tr>
+            <tr><td><code>/ontology</code></td><td>The ontology in Turtle syntax.</td></tr>
+            <tr><td><code>/assertions</code></td><td>The class hierarchy; <code>?type={class}</code> lists a class's instances, including inferred ones.</td></tr>
+            <tr><td><code>/describe?uri={uri}</code></td><td>Everything known about a resource, with provenance timestamps.</td></tr>
+            <tr><td><code>/search?q={text}</code></td><td>Fuzzy full-text search results.</td></tr>
+            <tr><td><code>/branches</code></td><td>Branches staged by ingestion, awaiting review.</td></tr>
+            <tr><td><code>/branches/{branch}</code></td><td>Staged assertions grouped by subject; edit, rename, <strong>Approve</strong>, or <strong>Reject</strong>.</td></tr>
+            <tr><td><code>/export</code></td><td>Downloads the approved assertions as a dated Turtle file (instance data only).</td></tr>
+            <tr><td><code>/import</code> (POST)</td><td>Stages an uploaded Turtle document on a branch for review — <em>not</em> a restore.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout warn">
+        <strong><code>/export</code> and <code>/import</code> are not inverses.</strong> Export serves
+        only the approved assertions; import feeds the upload through the same reviewed ingest, so
+        re-importing an export stages nothing (it is all already approved). Neither is a backup — for
+        that, see <a href="configuration.html#backups">scheduled backups</a>.
+      </div>
+
+      <figure class="screenshot">
+        <img src="assets/screenshots/describe.png" alt="Cortex describe page showing everything known about a resource with provenance timestamps." loading="lazy">
+        <figcaption>The Describe view — every statement about a resource, with "known since" timestamps from provenance.</figcaption>
+      </figure>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container container-wide footer-inner">
+      <div>Cortex — ontology-grounded knowledge graph memory. Apache-2.0.</div>
+      <nav class="footer-links">
+        <a href="architecture.html">Architecture</a>
+        <a href="getting-started.html">Getting started</a>
+        <a href="mcp.html">MCP server</a>
+        <a href="configuration.html">Configuration</a>
+        <a href="api/index.html">API</a>
+        <a href="https://github.com/chaturai/cortex">GitHub</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="js/site.js"></script>
+</body>
+</html>

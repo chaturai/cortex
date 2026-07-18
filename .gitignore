@@ -42,6 +42,11 @@ out/
 ### Cortex ###
 .cortex/
 
+### Docs site — generated Javadoc (assembled by .github/workflows/docs.yml, never committed) ###
+site/api/cortex-api/
+site/api/cortex-core/
+site/api/cortex-spring-boot-autoconfigure/
+
 ### Claude Code ###
 .claude
 

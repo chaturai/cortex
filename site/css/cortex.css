@@ -1,0 +1,400 @@
+/* ==========================================================================
+   Cortex documentation site
+   Brand lifted from the web UI (cortex-spring-boot-autoconfigure .../static/css/cortex.css):
+   Solarized palette, Roboto + JetBrains Mono. Dark by default, light via
+   prefers-color-scheme. Keep this in visual sync with the shipped UI.
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+/* --- Solarized, as fixed reference tones ---------------------------------- */
+:root {
+  --base03: #002b36;
+  --base02: #073642;
+  --base01: #586e75;
+  --base00: #657b83;
+  --base0:  #839496;
+  --base1:  #93a1a1;
+  --base2:  #eee8d5;
+  --base3:  #fdf6e3;
+  --yellow:  #b58900;
+  --orange:  #cb4b16;
+  --red:     #dc322f;
+  --magenta: #d33682;
+  --violet:  #6c71c4;
+  --blue:    #268bd2;
+  --cyan:    #2aa198;
+  --green:   #859900;
+}
+
+/* Dark theme (default) — Solarized Dark. */
+:root {
+  --bg:        var(--base03);
+  --bg-raised: var(--base02);
+  --bg-hover:  #0a4653;
+  --border:    var(--base01);
+  --text:      var(--base0);
+  --text-strong: var(--base1);
+  --text-heading: var(--base2);
+  --muted:     var(--base00);
+  --accent:    var(--blue);
+  --accent-2:  var(--cyan);
+  --code-bg:   #04303b;
+}
+
+/* Light theme — Solarized Light, when the viewer prefers light. */
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg:        var(--base3);
+    --bg-raised: var(--base2);
+    --bg-hover:  #e4ddc7;
+    --border:    #cdc8b4;
+    --text:      var(--base00);
+    --text-strong: var(--base01);
+    --text-heading: #073642;
+    --muted:     var(--base1);
+    --accent:    var(--blue);
+    --accent-2:  var(--cyan);
+    --code-bg:   #f4eeda;
+  }
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: "Roboto", system-ui, sans-serif;
+  background-color: var(--bg);
+  color: var(--text);
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: "Roboto", sans-serif;
+  color: var(--text-heading);
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+pre, code, kbd, samp {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+}
+
+a { color: var(--accent); text-decoration: none; transition: color 200ms ease; }
+a:hover { color: var(--accent-2); }
+
+/* --- Layout width --------------------------------------------------------- */
+.container { width: 100%; max-width: 60rem; margin: 0 auto; padding: 0 1.25rem; }
+.container-wide { max-width: 72rem; }
+
+/* --- Navbar --------------------------------------------------------------- */
+header.site-nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background-color: var(--bg-raised);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(6px);
+}
+
+.nav-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 0.6rem 1.25rem;
+}
+
+.navbar-brand {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.navbar-brand:hover { color: var(--accent); }
+.navbar-brand .tld { color: var(--muted); font-weight: 500; }
+
+.nav-links {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+.nav-links a {
+  color: var(--text);
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+.nav-links a:hover, .nav-links a.active { color: var(--accent); }
+.nav-links a.ext::after { content: " \2197"; color: var(--muted); font-size: 0.8em; }
+
+.nav-toggle {
+  display: none;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 0.3rem 0.55rem;
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  .nav-toggle { display: block; }
+  .nav-links {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+    background-color: var(--bg-raised);
+    border-bottom: 1px solid var(--border);
+    padding: 0.5rem 1.25rem 1rem;
+    display: none;
+  }
+  .nav-links.open { display: flex; }
+  .nav-links li { width: 100%; }
+  .nav-links a { display: block; padding: 0.6rem 0; width: 100%; }
+}
+
+/* --- Hero ----------------------------------------------------------------- */
+.hero {
+  padding: 4.5rem 0 3rem;
+  border-bottom: 1px solid var(--border);
+  background:
+    radial-gradient(60rem 30rem at 70% -10%, rgba(38, 139, 210, 0.12), transparent 60%),
+    radial-gradient(50rem 25rem at 10% 0%, rgba(42, 161, 152, 0.10), transparent 55%);
+}
+.hero h1 {
+  font-size: clamp(2.2rem, 5vw, 3.4rem);
+  letter-spacing: 0.02em;
+}
+.hero .wordmark { color: var(--accent); letter-spacing: 0.1em; }
+.hero .tagline {
+  margin-top: 1.1rem;
+  font-size: clamp(1.05rem, 2.2vw, 1.3rem);
+  color: var(--text-strong);
+  max-width: 46rem;
+}
+.hero .badges { margin-top: 1.5rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.hero .badges img { height: 20px; }
+.cta-row { margin-top: 2rem; display: flex; flex-wrap: wrap; gap: 0.75rem; }
+
+.btn {
+  display: inline-block;
+  padding: 0.6rem 1.2rem;
+  border-radius: 5px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+.btn-primary { background-color: var(--accent); color: var(--base03); border-color: var(--accent); }
+.btn-primary:hover { background-color: var(--accent-2); border-color: var(--accent-2); color: var(--base03); }
+.btn-ghost { color: var(--text); background: transparent; }
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+/* --- Sections ------------------------------------------------------------- */
+section { padding: 3rem 0; }
+section.alt { background-color: var(--bg-raised); border-block: 1px solid var(--border); }
+.section-title { font-size: 1.6rem; margin-bottom: 0.5rem; }
+.section-lead { color: var(--muted); margin-bottom: 2rem; max-width: 48rem; }
+
+/* --- Feature grid --------------------------------------------------------- */
+.grid { display: grid; gap: 1rem; }
+.grid-2 { grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); }
+.grid-3 { grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); }
+
+.card {
+  background-color: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1.25rem 1.4rem;
+  transition: border-color 200ms ease, transform 200ms ease;
+}
+.card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.card h3 { font-size: 1.05rem; color: var(--text-strong); margin-bottom: 0.4rem; }
+.card h3 .tag { color: var(--accent-2); }
+.card p { font-size: 0.9rem; color: var(--text); }
+
+/* --- Docs page layout ----------------------------------------------------- */
+.doc { padding: 2.5rem 0 4rem; }
+.doc h1 { font-size: 2rem; margin-bottom: 0.4rem; }
+.doc .lead { color: var(--muted); font-size: 1.05rem; margin-bottom: 2.2rem; }
+.doc h2 {
+  font-size: 1.4rem;
+  margin: 2.6rem 0 0.9rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-heading);
+}
+.doc h3 { font-size: 1.1rem; margin: 1.8rem 0 0.6rem; color: var(--text-strong); }
+.doc p { margin: 0.7rem 0; }
+.doc ul, .doc ol { margin: 0.7rem 0 0.7rem 1.4rem; }
+.doc li { margin: 0.35rem 0; }
+.doc strong { color: var(--text-strong); }
+
+/* Anchored headings */
+.doc h2, .doc h3 { scroll-margin-top: 4.5rem; }
+
+/* --- Inline code + code blocks -------------------------------------------- */
+code {
+  background-color: var(--code-bg);
+  color: var(--text-strong);
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  font-size: 0.85em;
+}
+.code-block { position: relative; margin: 1rem 0; }
+.code-block pre {
+  background-color: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1rem 1.1rem;
+  overflow-x: auto;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+.code-block pre code { background: none; padding: 0; color: var(--text); font-size: inherit; }
+.code-lang {
+  position: absolute;
+  top: 0;
+  left: 1rem;
+  transform: translateY(-50%);
+  background-color: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.05rem 0.5rem;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.copy-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background-color: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--muted);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+  padding: 0.2rem 0.5rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 200ms ease, color 200ms ease;
+}
+.code-block:hover .copy-btn { opacity: 1; }
+.copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+.copy-btn.copied { color: var(--green); border-color: var(--green); }
+
+/* --- Tables --------------------------------------------------------------- */
+.table-wrap { overflow-x: auto; margin: 1.2rem 0; border: 1px solid var(--border); border-radius: 6px; }
+table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+th, td { text-align: left; padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { background-color: var(--bg-raised); color: var(--text-strong); font-weight: 700; white-space: nowrap; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background-color: var(--bg-hover); }
+td code, th code { white-space: nowrap; }
+
+/* --- Callouts ------------------------------------------------------------- */
+.callout {
+  margin: 1.4rem 0;
+  padding: 0.9rem 1.1rem;
+  border-left: 3px solid var(--accent-2);
+  background-color: var(--bg-raised);
+  border-radius: 0 5px 5px 0;
+  font-size: 0.9rem;
+}
+.callout strong:first-child { color: var(--accent-2); }
+.callout.warn { border-left-color: var(--orange); }
+.callout.warn strong:first-child { color: var(--orange); }
+.callout.note { border-left-color: var(--violet); }
+.callout.note strong:first-child { color: var(--violet); }
+
+/* --- Steps ---------------------------------------------------------------- */
+.steps { list-style: none; counter-reset: step; margin-left: 0; }
+.steps > li {
+  position: relative;
+  padding-left: 2.6rem;
+  margin: 1.4rem 0;
+  min-height: 1.8rem;
+}
+.steps > li::before {
+  counter-increment: step;
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 50%;
+  background-color: var(--accent);
+  color: var(--base03);
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 700;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.steps > li h3 { margin-top: 0.1rem; }
+
+/* --- Diagrams / figures --------------------------------------------------- */
+figure { margin: 1.6rem 0; }
+figure svg, figure img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+figure.screenshot img {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+figcaption { margin-top: 0.6rem; text-align: center; font-size: 0.8rem; color: var(--muted); }
+
+/* --- Pills / meta --------------------------------------------------------- */
+.pill-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  background-color: var(--bg-raised);
+}
+.pill b { color: var(--text-strong); }
+
+/* --- Footer --------------------------------------------------------------- */
+footer.site-footer {
+  border-top: 1px solid var(--border);
+  background-color: var(--bg-raised);
+  padding: 2.5rem 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.footer-inner { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1.5rem; }
+.footer-inner a { color: var(--text); }
+.footer-inner a:hover { color: var(--accent); }
+.footer-links { display: flex; flex-wrap: wrap; gap: 1.25rem; }
+
+/* --- Utility -------------------------------------------------------------- */
+.text-muted { color: var(--muted); }
+.mono { font-family: "JetBrains Mono", monospace; }
+.center { text-align: center; }
+.mt-2 { margin-top: 2rem; }

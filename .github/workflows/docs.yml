@@ -1,0 +1,74 @@
+name: Docs
+
+# Builds the static documentation site (site/) plus generated Javadoc and deploys
+# it to GitHub Pages. Served at the default project Pages URL: https://chaturai.github.io/cortex/.
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "site/**"
+      - ".github/workflows/docs.yml"
+      # Rebuild Javadoc when the documented modules' sources or the build change.
+      - "cortex-api/src/**"
+      - "cortex-core/src/**"
+      - "cortex-spring-boot-autoconfigure/src/**"
+      - "**/*.gradle.kts"
+      - "gradle/libs.versions.toml"
+  workflow_dispatch:
+
+# Allow one concurrent deployment; let an in-progress run finish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'zulu'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@af1da67850ed9a4cedd57bfd976089dd991e2582 # v4.0.0
+
+      - name: Build Javadoc for the published modules
+        run: ./gradlew :cortex-api:javadoc :cortex-core:javadoc :cortex-spring-boot-autoconfigure:javadoc
+
+      - name: Assemble the Pages site
+        run: |
+          set -euo pipefail
+          out="_site"
+          rm -rf "$out"
+          # The hand-authored static site (includes api/index.html).
+          cp -R site "$out"
+          # Drop generated Javadoc beside the API landing page.
+          for m in cortex-api cortex-core cortex-spring-boot-autoconfigure; do
+            mkdir -p "$out/api/$m"
+            cp -R "$m/build/docs/javadoc/." "$out/api/$m/"
+          done
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

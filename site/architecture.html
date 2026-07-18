@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Architecture — Cortex</title>
+  <meta name="description" content="How Cortex works: ontology-grounded storage, the lint → validate → branch → review → approve ingestion pipeline, provenance, inference, search, and the delivery-mechanism module split.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🧠</text></svg>">
+  <link rel="stylesheet" href="css/cortex.css">
+</head>
+<body>
+  <header class="site-nav">
+    <div class="nav-inner">
+      <a class="navbar-brand" href="index.html">CORTEX</a>
+      <button class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+      <ul class="nav-links">
+        <li><a href="architecture.html" class="active">Architecture</a></li>
+        <li><a href="getting-started.html">Getting started</a></li>
+        <li><a href="mcp.html">MCP server</a></li>
+        <li><a href="configuration.html">Configuration</a></li>
+        <li><a class="ext" href="api/index.html">API</a></li>
+        <li><a class="ext" href="https://github.com/chaturai/cortex">GitHub</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <main class="doc">
+    <div class="container">
+      <h1>Architecture</h1>
+      <p class="lead">Cortex is a knowledge-graph memory that agents propose to and humans approve.
+        This page explains the storage model, the ingestion pipeline, and how the pieces are packaged.</p>
+
+      <h2 id="storage">Storage model</h2>
+      <p>Approved facts — <strong>assertions</strong> — are the source of truth. They live in an Apache
+        Jena <strong>TDB2</strong> store: in memory by default, or on disk when
+        <code>cortex.persistent=true</code>. Everything else is a <em>derived cache</em>:</p>
+      <ul>
+        <li>The <strong>inference closure</strong> (statements entailed by your rules) is materialised
+          into a separate in-memory dataset — the read model queries and search run against.</li>
+        <li>The <strong>full-text index</strong> is an in-memory Lucene index over <code>rdfs:label</code>
+          and <code>rdfs:comment</code>.</li>
+      </ul>
+      <p>Both are rebuilt from the assertions on every startup, regardless of persistence — so there is
+        no separate index to manage, and a restored or reloaded store is immediately consistent.</p>
+      <div class="callout note">
+        <strong>Why the split matters.</strong> Because inference and search are always derived, the
+        only durable state is the assertions dataset. That is what backup snapshots and what restore
+        reloads — the closure and index simply rebuild over it.
+      </div>
+
+      <h2 id="grounding">Ontology grounding</h2>
+      <p>You bring three classpath resources, each a list merged in order:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Resource</th><th>Property</th><th>Role</th></tr></thead>
+          <tbody>
+            <tr><td><code>ontology.ttl</code></td><td><code>cortex.ontologies</code></td><td>The OWL vocabulary — the classes and properties assertions may use.</td></tr>
+            <tr><td><code>ontology.shapes</code></td><td><code>cortex.shapes</code></td><td>SHACL shapes ingested data must structurally conform to.</td></tr>
+            <tr><td><code>ontology.rules</code></td><td><code>cortex.rules</code></td><td>Jena rules that derive inferred statements.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><strong>Linting</strong> is a closed-world vocabulary check: every class and property used must
+        be defined in the ontology, and only <code>rdf:type</code>, <code>rdfs:label</code>, and
+        <code>rdfs:comment</code> are allowed beyond it. <strong>SHACL validation</strong> is the
+        structural check, run over the union of incoming and already-approved data so a new statement
+        may rely on approved ones to conform.</p>
+
+      <h2 id="pipeline">The ingestion pipeline</h2>
+      <p>Nothing an agent or an <code>/import</code> submits reaches the approved graph directly. Every
+        write is proposed, staged, and gated on human approval:</p>
+      <figure>
+        <img src="assets/cortex-flow.svg" alt="Cortex ingestion pipeline: Turtle in, lint, SHACL validate and novelty diff, stage on a branch, human review, then approve (merge with provenance, extend inference and search) or reject." width="640">
+        <figcaption>Ingest → review → approve. Steps 3–4 and step 6 are each a single TDB2 write transaction.</figcaption>
+      </figure>
+      <ul>
+        <li><strong>Lint &amp; validate &amp; diff, then stage</strong> — linting, SHACL validation, the
+          novelty diff (dropping triples the graph already contains), and staging onto a new named graph
+          <code>cortex://branch-&lt;uuid&gt;</code> happen in <em>one</em> write transaction, so the
+          verdict and the diff can never race. If every incoming triple is already approved, nothing is
+          staged.</li>
+        <li><strong>Review</strong> — the branch shows up at <code>/branches</code>, where a reviewer can
+          delete statements, edit objects, and rename subjects before deciding.</li>
+        <li><strong>Approve or reject</strong> — approval merges the branch into the default graph, closes
+          the provenance activity, and records provenance for every merged statement, again in one write
+          transaction. Rejection simply discards the branch.</li>
+      </ul>
+      <div class="callout">
+        <strong>Single-writer safety.</strong> TDB2 serialises writers, which is exactly what makes
+        ingest and approve safe as single transactions — concurrent approvals cannot double-merge.
+      </div>
+
+      <h2 id="provenance">Provenance</h2>
+      <p>Cortex records lineage in <a href="https://www.w3.org/TR/prov-o/">PROV-O</a>. Staging a branch
+        creates a <code>prov:Activity</code> with a start time; approving it sets the end time and, for
+        every merged statement, writes a reification linked with <code>prov:wasGeneratedBy</code> into
+        the reserved <code>cortex://provenance</code> graph. That graph is excluded from inference and
+        queried separately — it is how the <em>Describe</em> view attaches a "known since" timestamp to
+        each fact.</p>
+      <div class="callout warn">
+        <strong>Reserved namespace.</strong> <code>cortex://</code> is Cortex's own — the provenance
+        graph and branch graphs live there. Your ontology uses its own namespace (the example uses
+        <code>example://ontology#</code>). The provenance graph is not a branch and is never rendered as
+        one.
+      </div>
+
+      <h2 id="inference-search">Inference &amp; search</h2>
+      <p>A Jena <code>GenericRuleReasoner</code> materialises derived statements from your
+        <code>ontology.rules</code>, bound to the ontology as schema. The full closure is recomputed once
+        at startup; each approval then extends it <em>incrementally</em> with only that approval's newly
+        added statements — and the Lucene index is patched with just those, so indexing stays cheap.
+        Query, Ask, Describe, and Search all read the inference dataset, so results always include
+        entailed statements.</p>
+
+      <h2 id="modules">Modules &amp; delivery mechanisms</h2>
+      <p>The auto-configuration is grouped by how the graph is <em>delivered</em> — to the process, to
+        humans, to agents, to durable storage, and seeded back from it — not by domain. That grouping is
+        why each mechanism is a single on/off switch.</p>
+      <figure>
+        <img src="assets/cortex-modules.svg" alt="The Cortex graph at the centre, delivered to humans via the web UI, to agents via MCP, to durable storage via backup, and seeded back via restore; backup and restore share one S3 client. Module stack: api, core, autoconfigure, starter." width="720">
+        <figcaption>One graph, five delivery mechanisms, each a single switch. Backup and restore independently share the S3 client.</figcaption>
+      </figure>
+      <p>The S3 client is deliberately separate from backup and restore: both require it, independently
+        of each other, so <code>cortex.s3.enabled</code> is a real switch rather than a flag that must
+        always track a consumer. See <a href="configuration.html#backups">Configuration</a> for the
+        details of backup and restore.</p>
+
+      <h2 id="ui">The web UI</h2>
+      <p>The starter serves a small server-rendered UI for exploring the graph and reviewing what agents
+        have staged.</p>
+      <figure class="screenshot">
+        <img src="assets/screenshots/home.png" alt="Cortex home page showing knowledge graph statistics." loading="lazy">
+        <figcaption>The home page — live statistics over the graph.</figcaption>
+      </figure>
+      <figure class="screenshot">
+        <img src="assets/screenshots/branches.png" alt="Cortex branches page listing pending branches awaiting review." loading="lazy">
+        <figcaption>Pending branches awaiting review, each with its provenance activity as badges.</figcaption>
+      </figure>
+      <figure class="screenshot">
+        <img src="assets/screenshots/branch.png" alt="Cortex branch review page showing staged assertions grouped by subject with approve and reject actions." loading="lazy">
+        <figcaption>Reviewing a branch — edit, approve, or reject staged assertions before they enter the graph.</figcaption>
+      </figure>
+      <p>See the full route table in the <a href="getting-started.html#web-ui">getting-started guide</a>.</p>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container container-wide footer-inner">
+      <div>Cortex — ontology-grounded knowledge graph memory. Apache-2.0.</div>
+      <nav class="footer-links">
+        <a href="architecture.html">Architecture</a>
+        <a href="getting-started.html">Getting started</a>
+        <a href="mcp.html">MCP server</a>
+        <a href="configuration.html">Configuration</a>
+        <a href="api/index.html">API</a>
+        <a href="https://github.com/chaturai/cortex">GitHub</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="js/site.js"></script>
+</body>
+</html>

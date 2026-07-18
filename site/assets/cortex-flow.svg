@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 760" font-family="'JetBrains Mono','Roboto',monospace" role="img" aria-labelledby="flowtitle flowdesc">
+  <title id="flowtitle">Cortex ingestion and review pipeline</title>
+  <desc id="flowdesc">Turtle assertions are linted, SHACL-validated and novelty-diffed, staged on a branch for human review, then either approved (merged into the approved graph with provenance, extending inference and search) or rejected.</desc>
+
+  <defs>
+    <marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#839496"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#859900"/>
+    </marker>
+    <marker id="arrow-red" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#dc322f"/>
+    </marker>
+    <style>
+      .box  { fill:#073642; stroke:#586e75; stroke-width:1.5; rx:8; }
+      .num  { fill:#268bd2; font-weight:700; font-size:15px; }
+      .t    { fill:#eee8d5; font-size:14px; font-weight:700; }
+      .d    { fill:#93a1a1; font-size:12px; }
+      .edge { stroke:#839496; stroke-width:1.6; fill:none; }
+      .lane { fill:#586e75; font-size:11px; letter-spacing:0.12em; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="640" height="760" fill="#002b36" rx="10"/>
+
+  <!-- lane labels -->
+  <text class="lane" x="24" y="30">AGENTS &amp; IMPORT PROPOSE</text>
+  <text class="lane" x="24" y="372">HUMANS DECIDE</text>
+
+  <!-- 1 -->
+  <rect class="box" x="120" y="44" width="400" height="56" rx="8"/>
+  <text class="num" x="140" y="78">1</text>
+  <text class="t" x="164" y="70">Turtle assertions in</text>
+  <text class="d" x="164" y="88">MCP Ingest tool, or POST /import</text>
+
+  <path class="edge" d="M320,100 L320,128" marker-end="url(#arrow)"/>
+
+  <!-- 2 -->
+  <rect class="box" x="120" y="130" width="400" height="56" rx="8"/>
+  <text class="num" x="140" y="164">2</text>
+  <text class="t" x="164" y="156">Lint</text>
+  <text class="d" x="164" y="174">reject terms not defined in cortex://ontology</text>
+
+  <path class="edge" d="M320,186 L320,214" marker-end="url(#arrow)"/>
+
+  <!-- 3 -->
+  <rect class="box" x="120" y="216" width="400" height="56" rx="8"/>
+  <text class="num" x="140" y="250">3</text>
+  <text class="t" x="164" y="242">SHACL validate + novelty diff</text>
+  <text class="d" x="164" y="260">validated with the approved graph; drop known triples</text>
+
+  <path class="edge" d="M320,272 L320,300" marker-end="url(#arrow)"/>
+
+  <!-- 4 -->
+  <rect class="box" x="120" y="302" width="400" height="56" rx="8"/>
+  <text class="num" x="140" y="336">4</text>
+  <text class="t" x="164" y="328">Stage on a branch</text>
+  <text class="d" x="164" y="346">RDF patch · cortex://branch-&lt;uuid&gt; · PROV activity started</text>
+
+  <!-- one write txn bracket for 3-4 -->
+  <path d="M534,216 q10,0 10,10 v122 q0,10 -10,10" fill="none" stroke="#2aa198" stroke-width="1.4"/>
+  <text class="d" x="548" y="290" fill="#2aa198" transform="rotate(90 548,290)" text-anchor="middle">one write txn</text>
+
+  <path class="edge" d="M320,358 L320,392" marker-end="url(#arrow)"/>
+
+  <!-- 5 gate -->
+  <rect class="box" x="120" y="394" width="400" height="56" rx="8" style="stroke:#b58900;stroke-width:2"/>
+  <text class="num" x="140" y="428" style="fill:#b58900">5</text>
+  <text class="t" x="164" y="420">Human review — /branches</text>
+  <text class="d" x="164" y="438">inspect, edit, rename subjects; nothing is approved yet</text>
+
+  <!-- split to reject / approve -->
+  <path class="edge" d="M200,450 L120,506" marker-end="url(#arrow-red)" style="stroke:#dc322f"/>
+  <path class="edge" d="M440,450 L520,506" marker-end="url(#arrow-green)" style="stroke:#859900"/>
+
+  <!-- reject -->
+  <rect class="box" x="24" y="508" width="150" height="48" rx="8" style="stroke:#dc322f"/>
+  <text class="t" x="40" y="530" style="fill:#dc322f">Reject</text>
+  <text class="d" x="40" y="547">discard branch</text>
+
+  <!-- approve -->
+  <rect class="box" x="466" y="508" width="150" height="48" rx="8" style="stroke:#859900"/>
+  <text class="t" x="482" y="530" style="fill:#859900">Approve</text>
+  <text class="d" x="482" y="547">merge (1 txn)</text>
+
+  <path class="edge" d="M541,556 L541,588 L320,588 L320,604" marker-end="url(#arrow-green)" style="stroke:#859900"/>
+
+  <!-- 6 merged state -->
+  <rect class="box" x="60" y="606" width="520" height="58" rx="8"/>
+  <text class="num" x="80" y="641">6</text>
+  <text class="t" x="104" y="633">Approved assertions (TDB2) + provenance recorded</text>
+  <text class="d" x="104" y="651">prov:wasGeneratedBy on every merged statement · cortex://provenance</text>
+
+  <path class="edge" d="M320,664 L320,690" marker-end="url(#arrow)"/>
+
+  <!-- 7 derived -->
+  <rect class="box" x="60" y="692" width="520" height="50" rx="8" style="stroke:#2aa198"/>
+  <text class="t" x="80" y="716" style="fill:#2aa198">Inference closure extended · Lucene index updated</text>
+  <text class="d" x="80" y="733">in-memory, rebuilt on startup · powers Query · Ask · Describe · Search</text>
+</svg>

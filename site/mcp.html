@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MCP server &amp; customization — Cortex</title>
+  <meta name="description" content="Run your own Cortex MCP server: the tools and ontology resource it exposes, how to connect a client, and how to customize tools, schema, and beans.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🧠</text></svg>">
+  <link rel="stylesheet" href="css/cortex.css">
+</head>
+<body>
+  <header class="site-nav">
+    <div class="nav-inner">
+      <a class="navbar-brand" href="index.html">CORTEX</a>
+      <button class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+      <ul class="nav-links">
+        <li><a href="architecture.html">Architecture</a></li>
+        <li><a href="getting-started.html">Getting started</a></li>
+        <li><a href="mcp.html" class="active">MCP server</a></li>
+        <li><a href="configuration.html">Configuration</a></li>
+        <li><a class="ext" href="api/index.html">API</a></li>
+        <li><a class="ext" href="https://github.com/chaturai/cortex">GitHub</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <main class="doc">
+    <div class="container">
+      <h1>Run your own MCP server</h1>
+      <p class="lead">Cortex ships a Model Context Protocol server so AI agents can read and write your
+        knowledge graph — grounded in your ontology and gated by the same human review as any other
+        write.</p>
+
+      <h2 id="whatit">What you get</h2>
+      <p>When the starter is on the classpath, an MCP server (built on Spring AI's MCP support) is
+        auto-configured and served over HTTP at <code>/mcp</code>. It is on by default; the single
+        switch <code>cortex.mcp.enabled=false</code> turns it off without excluding individual beans.
+        Configure the transport under Spring AI's own properties:</p>
+      <div class="code-block">
+        <span class="code-lang">application.yaml</span>
+        <pre><code>spring:
+  ai:
+    mcp:
+      server:
+        protocol: stateless
+        type: sync
+        instructions: Use this MCP for knowledge graph operations. Load cortex://ontology resource on connection
+cortex:
+  mcp:
+    enabled: true   # the default</code></pre>
+      </div>
+
+      <h2 id="tools">Tools</h2>
+      <p>Six tools. The read-only ones are marked idempotent; <em>Ingest</em> is the only writer, and
+        even it does not touch the approved graph — it stages a branch for review.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Tool</th><th>Parameter</th><th>What it does</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Lint</strong></td><td><code>ttl</code></td><td>Checks assertions against <code>cortex://ontology</code>: classes/properties not defined there are rejected; only <code>rdf:type</code>, <code>rdfs:label</code>, <code>rdfs:comment</code> are allowed beyond it. Returns the validated TTL, or the violations. <strong>Call before Ingest.</strong> Read-only.</td></tr>
+            <tr><td><strong>Ingest</strong></td><td><code>ttl</code></td><td>Lints, SHACL-validates against the approved assertions, trims already-known triples, and stages the rest on a new branch for human review. Returns the branch name (<code>null</code> if nothing was novel), or the errors.</td></tr>
+            <tr><td><strong>Query</strong></td><td><code>sparql</code></td><td>Runs a SPARQL <code>SELECT</code> (including inferred statements); returns a text table. Read-only.</td></tr>
+            <tr><td><strong>Ask</strong></td><td><code>sparql</code></td><td>Answers a SPARQL <code>ASK</code> — <code>true</code>/<code>false</code>. Read-only.</td></tr>
+            <tr><td><strong>Describe</strong></td><td><code>sparql</code></td><td>Runs a SPARQL <code>DESCRIBE</code>; returns Turtle. Read-only.</td></tr>
+            <tr><td><strong>Search</strong></td><td><code>text</code></td><td>Fuzzy full-text search over labels, tolerant of typos, ranked by relevance. Read-only.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout">
+        <strong>The tools guide the agent.</strong> Ingest instructs agents to Search or Query for
+        existing IRIs before generating new data and to reuse them, so the same instance is never
+        ingested under two names — and to open <code>/branches/&lt;branch&gt;</code> for a human once a
+        branch is returned.
+      </div>
+
+      <h2 id="resource">The ontology resource</h2>
+      <p>One MCP resource is exposed so agents can ground themselves before writing:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Resource</th><th>URI</th><th>Media type</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Ontology</strong></td><td><code>cortex://ontology</code></td><td><code>text/turtle</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 id="connect">Connect a client</h2>
+      <p>Point any MCP client at the HTTP endpoint. For example, a Claude Code <code>.mcp.json</code>:</p>
+      <div class="code-block">
+        <span class="code-lang">.mcp.json</span>
+        <pre><code>{
+  "mcpServers": {
+    "cortex": { "type": "http", "url": "http://localhost:8080/mcp" }
+  }
+}</code></pre>
+      </div>
+      <p>A typical agent flow: read <code>cortex://ontology</code> → <strong>Search</strong>/<strong>Query</strong>
+        for existing resources → <strong>Lint</strong> the new Turtle → <strong>Ingest</strong> it →
+        a human approves the branch at <code>/branches</code>.</p>
+
+      <h2 id="customize">Customization</h2>
+
+      <h3>Bring your own schema</h3>
+      <p>The graph is defined entirely by the resources you supply — override
+        <code>cortex.ontologies</code>, <code>cortex.shapes</code>, and <code>cortex.rules</code> (each a
+        list, merged in order) to model your own domain. Namespaces are yours; only
+        <code>cortex://</code> is reserved. See <a href="getting-started.html#schema">Getting started</a>.</p>
+
+      <h3>Override any tool or resource</h3>
+      <p>Every auto-configured bean is <code>@ConditionalOnMissingBean</code>, so declaring your own bean
+        of the same type replaces the default. Want to tighten the Ingest description, add a tool, or
+        swap the ontology resource? Define the bean and Cortex backs off:</p>
+      <div class="code-block">
+        <span class="code-lang">Java</span>
+        <pre><code>@Configuration
+class MyMcpCustomizations {
+  // Replaces the default QueryTools bean; add or restrict tools as you like.
+  @Bean
+  QueryTools queryTools(CortexQuery query, CortexSearch search) {
+    return new QueryTools(query, search);
+  }
+}</code></pre>
+      </div>
+      <div class="callout note">
+        <strong>Narrow to the role you need.</strong> <code>Cortex</code> extends nine role interfaces
+        (<code>CortexQuery</code>, <code>CortexSearch</code>, <code>CortexIngestor</code>, …). Injecting
+        the specific role instead of the whole <code>Cortex</code> keeps your beans focused and trivially
+        testable.
+      </div>
+
+      <h3>Turn off what you don't need</h3>
+      <p>The MCP server, the web UI, backup, and restore are each a single switch — flip
+        <code>cortex.web.enabled=false</code> to run headless with just the MCP server, for instance.
+        See the <a href="configuration.html">Configuration reference</a>.</p>
+
+      <h3>Embed without Spring</h3>
+      <p>Need the graph outside a Spring context — in a library, a test, or another framework? Use
+        <code>CortexBuilder</code> from <code>cortex-core</code> to assemble a <code>Cortex</code>
+        directly:</p>
+      <div class="code-block">
+        <span class="code-lang">Java</span>
+        <pre><code>Cortex cortex = CortexBuilder.create()
+    .ontologies(ontologyTtl)   // file content as String
+    .shapes(shapesTtl)
+    .rules(rulesText)
+    .build();                  // in-memory; .persistent(dir) for on-disk</code></pre>
+      </div>
+      <p>The same eleven services the Spring auto-configuration wires are assembled here, so the two
+        paths produce identical objects.</p>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container container-wide footer-inner">
+      <div>Cortex — ontology-grounded knowledge graph memory. Apache-2.0.</div>
+      <nav class="footer-links">
+        <a href="architecture.html">Architecture</a>
+        <a href="getting-started.html">Getting started</a>
+        <a href="mcp.html">MCP server</a>
+        <a href="configuration.html">Configuration</a>
+        <a href="api/index.html">API</a>
+        <a href="https://github.com/chaturai/cortex">GitHub</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="js/site.js"></script>
+</body>
+</html>
