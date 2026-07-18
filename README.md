@@ -21,6 +21,7 @@ Adding the starter auto-configures a complete knowledge graph memory for your Sp
 - **A web UI** — pages to explore the graph, search it from the navbar, and review, edit, and approve pending branches (see below).
 - **Export and import** — the approved assertions can be downloaded as a Turtle file from `/export`, and a Turtle document can be uploaded at `/import`, which stages it on a branch for review like any other ingest rather than replacing the graph.
 - **Scheduled backups to S3** — a Quartz job periodically snapshots the whole assertions dataset with TDB2's own backup and uploads it to S3 or any S3-compatible store (see below). Off by default.
+- **Restore on startup** — the reverse: on boot, download the latest backup from S3 and load it into the store before the application serves traffic, so an instance replaced on a fresh volume comes up with its data. Off by default.
 
 ## Requirements
 
@@ -65,7 +66,9 @@ All properties are bound under the `cortex` prefix. `ontologies`, `shapes`, and 
 | `cortex.backup.enabled` | `false` | Whether the scheduled backup job is registered. See [Scheduled backups](#scheduled-backups) — enabling it requires `cortex.persistent=true`, an enabled S3 client, and two extra dependencies. |
 | `cortex.backup.interval` | `24h` | How often a backup is taken. The first runs one interval **after** startup, not at startup, so restarts do not each leave a backup behind. |
 | `cortex.backup.keyPrefix` | `cortex/` | Prepended verbatim to the backup's file name to form the S3 object key. Include a trailing `/` to group the objects under a folder. |
-| `cortex.s3.enabled` | `false` | Whether the `S3Client` bean is registered. Independent of `cortex.backup.enabled`, though backups require it. |
+| `cortex.restore.enabled` | `false` | Whether the latest backup under `cortex.restore.keyPrefix` is downloaded and loaded into the store at startup. See [Restore on startup](#restore-on-startup) — enabling it requires `cortex.persistent=true`, an enabled S3 client, and the same two extra dependencies as backups. |
+| `cortex.restore.keyPrefix` | `cortex/` | The S3 key prefix to look for backups under. Defaults to the same value as `cortex.backup.keyPrefix`; set it to match if you customize that. |
+| `cortex.s3.enabled` | `false` | Whether the `S3Client` bean is registered. Independent of `cortex.backup.enabled` and `cortex.restore.enabled`, though both require it. |
 | `cortex.s3.endpoint` | _(unset)_ | The S3 endpoint, e.g. `http://localhost:9000` for MinIO. When unset, the AWS endpoint for the region is used. |
 | `cortex.s3.bucket` | _(unset)_ | The bucket backups are uploaded to. Required when backups are enabled. |
 | `cortex.s3.region` | `us-east-1` | The region to sign for. The SDK requires one even against S3-compatible stores that ignore it. |
@@ -121,6 +124,32 @@ cortex:
 > **Backups require `cortex.persistent=true`.** A TDB2 backup is an admin operation on an on-disk store; the in-memory store used by default has no location to write a backup beside. Enabling backups without persistence **fails at startup** rather than booting an application that reports healthy and never backs anything up. The same is true of a missing bucket, missing static credentials, a non-positive interval, and the dependencies above.
 
 Backup files accumulate under `<cortex.assertionsLocation>/Backups/` and are never deleted: the upload is a copy, not a move, so a bucket misconfiguration can never destroy data. Pruning them is left to whatever manages that volume — or to an S3 lifecycle rule for the uploaded copies.
+
+## Restore on startup
+
+The inverse of a backup: on boot, Cortex can download the most recent backup from S3 and load it into the assertions store **before the application serves traffic**, so an instance whose local disk was replaced comes up with its data. The inference closure and full-text index are then rebuilt from the restored assertions on startup as usual, with no extra step.
+
+This treats S3 as the source of truth and the local store as replaceable: the restore is a **wipe-and-load that runs on every boot** — it clears the store and loads the latest backup over it, restoring the approved assertions, every staged branch, and the provenance graph at full fidelity. It needs the same dependencies as backups (`spring-boot-starter-quartz` is *not* among them — restore uses no scheduler, but `software.amazon.awssdk:s3` and `apache-client` are required), plus an enabled S3 client:
+
+```yaml
+cortex:
+  persistent: true
+  restore:
+    enabled: true
+  s3:
+    enabled: true
+    endpoint: http://localhost:9000
+    bucket: cortex-backups
+    region: us-east-1
+    auth: anonymous
+    path-style-access: true
+```
+
+The switch is independent of `cortex.backup.enabled`: an instance may restore from another's uploads without scheduling backups of its own, or the same instance may do both. When it does both and `cortex.backup.keyPrefix` is customized, set `cortex.restore.keyPrefix` to match so the restore looks under the same prefix the backups were written to.
+
+> **Restore requires `cortex.persistent=true`**, an enabled and configured S3 client, and the AWS SDK dependencies — each checked at startup, so a half-configured restore **fails the context** rather than silently booting an empty graph the operator expected to be seeded. The one case that is *not* an error is an empty bucket: a first-ever deployment with no backup yet logs and starts empty.
+
+> **A restore is destructive by design** — it discards the local store's current contents. That is the intended behavior when S3 is your source of truth (an ephemeral volume, a fresh replica), but it means any local writes not yet captured by a backup are lost on the next boot. If that is not what you want, leave `cortex.restore.enabled=false`.
 
 ## Modules
 
@@ -191,7 +220,7 @@ The starter also serves a small UI for exploring the graph and reviewing what ag
 
 `0.1.1` changes what `/export` and `/import` mean. Cortex is pre-1.0, so the following were changed rather than deprecated:
 
-- **`CortexArchive.importAssertions(String)` removed.** `/import` no longer restores a dataset — it stages the upload for review through `ingest`. The destructive whole-dataset restore is gone with it, and the replacement for it is the [scheduled backup](#scheduled-backups), which captures strictly more (staged branches and provenance, not just approved assertions). To restore one, stop the application and load the `.nq.gz` into the store with Jena's `tdb2.tdbloader`.
+- **`CortexArchive.importAssertions(String)` removed.** `/import` no longer restores a dataset — it stages the upload for review through `ingest`. The destructive whole-dataset restore is gone with it, and the replacement for it is the [scheduled backup](#scheduled-backups), which captures strictly more (staged branches and provenance, not just approved assertions). To restore one, enable [restore on startup](#restore-on-startup), or stop the application and load the `.nq.gz` into the store with Jena's `tdb2.tdbloader`.
 - **`CortexArchive.getAssertions()` removed.** It served the approved assertions as TriG and had no caller; `exportAssertions()` now returns exactly that, as Turtle.
 - **`CortexArchive.exportAssertions()` returns Turtle, not TriG, and only the approved assertions.** It previously serialized the entire dataset — every staged branch and the provenance graph included. `/export` accordingly serves `cortex-assertions-<date>.ttl` as `text/turtle` rather than `.trig` as `application/trig`.
 - **`/import` accepts `.ttl` only, and no longer replaces the graph.** An uploaded document is linted, SHACL-validated, reduced to what is novel, and staged on a branch; the browser lands on `/branches`. A `.trig` upload is rejected with an explanation. Anything automating the old restore behaviour must change: an import can now be **rejected** by a reviewer, and never overwrites what is already approved.

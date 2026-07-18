@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cortex — ontology-grounded knowledge graph memory for AI agents</title>
+  <meta name="description" content="Cortex is an ontology-backed RDF knowledge graph memory store for Spring Boot with branch-based ingestion, provenance, inference, and full-text search — exposed to AI agents over MCP.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🧠</text></svg>">
+  <link rel="stylesheet" href="css/cortex.css">
+</head>
+<body>
+  <header class="site-nav">
+    <div class="nav-inner">
+      <a class="navbar-brand" href="index.html">CORTEX</a>
+      <button class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+      <ul class="nav-links">
+        <li><a href="architecture.html">Architecture</a></li>
+        <li><a href="getting-started.html">Getting started</a></li>
+        <li><a href="mcp.html">MCP server</a></li>
+        <li><a href="configuration.html">Configuration</a></li>
+        <li><a class="ext" href="api/index.html">API</a></li>
+        <li><a class="ext" href="https://github.com/chaturai/cortex">GitHub</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container container-wide">
+        <h1><span class="wordmark">Cortex</span></h1>
+        <p class="tagline">An ontology-backed knowledge graph memory store with branch-based
+          ingestion, provenance, inference, and full-text search — exposed to AI agents over MCP.</p>
+        <div class="badges">
+          <a href="https://github.com/chaturai/cortex/actions/workflows/gradle.yml"><img alt="CI" src="https://github.com/chaturai/cortex/actions/workflows/gradle.yml/badge.svg?branch=main"></a>
+          <a href="https://codecov.io/gh/chaturai/cortex"><img alt="Coverage" src="https://codecov.io/gh/chaturai/cortex/branch/main/graph/badge.svg"></a>
+          <a href="https://github.com/chaturai/cortex/tags"><img alt="Release" src="https://img.shields.io/github/v/tag/chaturai/cortex?label=release&sort=semver"></a>
+        </div>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="getting-started.html">Get started</a>
+          <a class="btn btn-ghost" href="architecture.html">How it works</a>
+          <a class="btn btn-ghost" href="https://github.com/chaturai/cortex">View on GitHub</a>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="container container-wide">
+        <h2 class="section-title">What is Cortex?</h2>
+        <p class="section-lead">Adding one Spring Boot starter auto-configures a complete,
+          ontology-grounded knowledge-graph memory for your application — backed by Apache Jena, gated
+          by human review, and designed to be read and written by AI agents over the Model Context
+          Protocol.</p>
+        <div class="grid grid-3">
+          <div class="card">
+            <h3>Ontology-grounded</h3>
+            <p>You supply the vocabulary (<code>ontology.ttl</code>), the SHACL shapes
+              (<code>ontology.shapes</code>), and the inference rules (<code>ontology.rules</code>).
+              Every assertion is linted and validated against them before it can enter the graph.</p>
+          </div>
+          <div class="card">
+            <h3>Human-in-the-loop</h3>
+            <p>Incoming assertions are staged on a branch as an RDF patch. Nothing reaches the
+              approved graph until a human reviews and approves it — agents propose, people decide.</p>
+          </div>
+          <div class="card">
+            <h3>Agent-native (MCP)</h3>
+            <p>A Spring AI MCP server exposes Lint, Ingest, Query, Ask, Describe, and Search tools plus
+              the ontology as a resource, so agents ground their reads and writes in your schema.</p>
+          </div>
+          <div class="card">
+            <h3>Provenance built in</h3>
+            <p>Every ingestion is a PROV-O <code>prov:Activity</code>; every approved statement is
+              reified and linked with <code>prov:wasGeneratedBy</code>. You always know where a fact
+              came from and when.</p>
+          </div>
+          <div class="card">
+            <h3>Inference &amp; search</h3>
+            <p>Jena rule-based inference extends the graph incrementally on each approval; a Lucene
+              full-text index over labels and comments tolerates typos and ranks by relevance.</p>
+          </div>
+          <div class="card">
+            <h3>Durable by design</h3>
+            <p>Approved assertions live in a TDB2 store — in memory, or on disk. Optional scheduled
+              backups to S3 and restore-on-startup let an ephemeral replica come up fully seeded.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="alt">
+      <div class="container">
+        <h2 class="section-title">Install</h2>
+        <p class="section-lead">Requires <strong>JDK 21</strong> and <strong>Spring Boot 4.0</strong>.
+          Add the starter — it brings everything the graph, the web UI, and the MCP server need.</p>
+
+        <div class="code-block">
+          <span class="code-lang">Gradle (build.gradle.kts)</span>
+          <pre><code>implementation("ai.chatur:cortex-spring-boot-starter:0.1.1")</code></pre>
+        </div>
+
+        <div class="code-block">
+          <span class="code-lang">Maven (pom.xml)</span>
+          <pre><code>&lt;dependency&gt;
+  &lt;groupId&gt;ai.chatur&lt;/groupId&gt;
+  &lt;artifactId&gt;cortex-spring-boot-starter&lt;/artifactId&gt;
+  &lt;version&gt;0.1.1&lt;/version&gt;
+&lt;/dependency&gt;</code></pre>
+        </div>
+
+        <p class="mt-2"><a class="btn btn-primary" href="getting-started.html">Full getting-started guide →</a></p>
+      </div>
+    </section>
+
+    <section>
+      <div class="container container-wide">
+        <h2 class="section-title">Modules</h2>
+        <p class="section-lead">Cortex is split across five Gradle modules; the first four publish
+          independently to Maven Central under the <code>ai.chatur</code> group.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Module</th><th>Purpose</th></tr></thead>
+            <tbody>
+              <tr><td><code>cortex-api</code></td><td>The public contract: the <code>Cortex</code> interface, its nine role interfaces, and the data records. Pure Java — no dependencies.</td></tr>
+              <tr><td><code>cortex-core</code></td><td>The Jena-backed implementation (<code>JenaCortex</code>) and <code>CortexBuilder</code>, which assembles a <code>Cortex</code> without Spring.</td></tr>
+              <tr><td><code>cortex-spring-boot-autoconfigure</code></td><td>Spring Boot auto-configuration for the <code>Cortex</code> bean, the web UI controllers, and the MCP tools and resources.</td></tr>
+              <tr><td><code>cortex-spring-boot-starter</code></td><td>The single dependency consumers add; brings the autoconfigure module plus the Spring MVC and Thymeleaf dependencies the web UI needs.</td></tr>
+              <tr><td><code>cortex-spring-boot-starter-example</code></td><td>A runnable example app with a sample ontology, shapes, and rules. Not published.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section class="alt">
+      <div class="container">
+        <h2 class="section-title">Project details</h2>
+        <div class="pill-row">
+          <span class="pill">License <b>Apache-2.0</b></span>
+          <span class="pill">Group <b>ai.chatur</b></span>
+          <span class="pill">JDK <b>21+</b></span>
+          <span class="pill">Spring Boot <b>4.0+</b></span>
+          <span class="pill">Latest <b class="cortex-version">0.1.1</b></span>
+        </div>
+        <ul>
+          <li><a href="https://github.com/chaturai/cortex">Source &amp; issues on GitHub</a> — <code>chaturai/cortex</code></li>
+          <li><a href="api/index.html">API reference (Javadoc)</a> for the three published modules</li>
+          <li><a href="https://central.sonatype.com/search?q=g:ai.chatur">Artifacts on Maven Central</a></li>
+          <li>Schema authoring via the <a href="getting-started.html#schema">cortex-schema Claude Code plugin</a></li>
+        </ul>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container container-wide footer-inner">
+      <div>Cortex — ontology-grounded knowledge graph memory. Apache-2.0.</div>
+      <nav class="footer-links">
+        <a href="architecture.html">Architecture</a>
+        <a href="getting-started.html">Getting started</a>
+        <a href="mcp.html">MCP server</a>
+        <a href="configuration.html">Configuration</a>
+        <a href="api/index.html">API</a>
+        <a href="https://github.com/chaturai/cortex">GitHub</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="js/site.js"></script>
+</body>
+</html>

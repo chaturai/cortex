@@ -36,6 +36,9 @@ import software.amazon.awssdk.services.s3.S3ClientBuilder;
 @EnableConfigurationProperties(CortexProperties.class)
 public class CortexS3AutoConfiguration {
 
+  /** Creates the auto-configuration. Spring instantiates this; consumers do not. */
+  public CortexS3AutoConfiguration() {}
+
   /**
    * Creates the S3 client backups are uploaded through.
    *
