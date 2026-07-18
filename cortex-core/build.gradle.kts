@@ -18,6 +18,11 @@ dependencies {
   api("org.apache.jena:jena-shacl")
   api("org.apache.jena:jena-text")
 
+  // Lucene arrives transitively through jena-text, but the text index and the query builder use it
+  // directly; the version stays governed by the Jena BOM above
+  implementation(libs.lucene.core)
+  implementation(libs.lucene.queryparser)
+
   testImplementation(platform(libs.junit.bom))
   testImplementation("org.junit.jupiter:junit-jupiter")
   testImplementation(libs.assertj.core)

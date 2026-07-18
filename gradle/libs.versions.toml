@@ -13,6 +13,11 @@ gradle-maven-publish-plugin = "0.33.0"
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 jena-bom = { module = "org.apache.jena:jena-bom", version.ref = "apache-jena" }
+# deliberately versionless: these are direct dependencies of the text index and query builder, but
+# jena-text is tightly coupled to the Lucene it ships against, so the Jena BOM stays the single
+# source of the version
+lucene-core = { module = "org.apache.lucene:lucene-core" }
+lucene-queryparser = { module = "org.apache.lucene:lucene-queryparser" }
 spring-boot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
 spring-ai-bom = { module = "org.springframework.ai:spring-ai-bom", version.ref = "spring-ai" }
 aws-sdk-bom = { module = "software.amazon.awssdk:bom", version.ref = "aws-sdk" }
