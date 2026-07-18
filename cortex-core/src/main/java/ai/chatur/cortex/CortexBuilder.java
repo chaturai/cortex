@@ -18,6 +18,7 @@ import ai.chatur.cortex.core.query.QueryService;
 import ai.chatur.cortex.core.stats.StatsService;
 import ai.chatur.cortex.core.store.AssertionStore;
 import ai.chatur.cortex.core.store.TextIndexFactory;
+import ai.chatur.cortex.core.usage.UsageService;
 import java.util.List;
 import org.apache.jena.ontapi.model.OntModel;
 import org.apache.jena.query.Dataset;
@@ -139,7 +140,8 @@ public final class CortexBuilder {
         new BranchMergeService(assertions, branchRepository, provenanceRecorder);
     ArchiveService archiveService = new ArchiveService(assertions);
     InferenceService inferenceService = new InferenceService(assertions, inferences, reasoner);
-    QueryService queryService = new QueryService(inferences, assertions, ontModel);
+    UsageService usageService = new UsageService(assertions);
+    QueryService queryService = new QueryService(inferences, assertions, ontModel, usageService);
     StatsService statsService =
         new StatsService(assertions, inferences, ontModel, parsedShapes, parsedRules);
 

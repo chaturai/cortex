@@ -8,9 +8,11 @@ import ai.chatur.cortex.core.Terms;
 import ai.chatur.cortex.core.jena.Rdf;
 import ai.chatur.cortex.core.jena.Sparql;
 import ai.chatur.cortex.core.store.TextIndexFactory;
+import ai.chatur.cortex.core.usage.UsageService;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -98,6 +100,7 @@ public class QueryService {
   private final Dataset inferences;
   private final Dataset assertions;
   private final OntModel ontModel;
+  private final UsageService usageService;
 
   /**
    * Creates the service.
@@ -105,11 +108,14 @@ public class QueryService {
    * @param inferences the dataset holding the assertions enriched by inference
    * @param assertions the dataset holding the approved assertions and their provenance
    * @param ontModel the ontology model, used to resolve classes and shorten URIs
+   * @param usageService view counts, which weight the ranking of search results
    */
-  public QueryService(Dataset inferences, Dataset assertions, OntModel ontModel) {
+  public QueryService(
+      Dataset inferences, Dataset assertions, OntModel ontModel, UsageService usageService) {
     this.inferences = inferences;
     this.assertions = assertions;
     this.ontModel = ontModel;
+    this.usageService = usageService;
   }
 
   /**
@@ -184,6 +190,9 @@ public class QueryService {
    * @return the statements about the resource, sorted by predicate
    */
   public List<ProvenancedStatement> describe(String id) {
+    // opening a resource is the deliberate-view signal that weights search ranking; recorded before
+    // the reads below because a flush needs its own write transaction and must not nest
+    usageService.recordView(id);
     Resource subject = ResourceFactory.createResource(id);
     Map<StatementKey, String> created = getCreated(subject);
     List<ProvenancedStatement> statements = new ArrayList<>();
@@ -297,7 +306,30 @@ public class QueryService {
                                 : 0));
               }
             });
-    return List.copyOf(best.values());
+    return rankByPopularity(best);
+  }
+
+  /**
+   * Weights each candidate by how often it has been viewed and re-sorts.
+   *
+   * <p>Re-ranking happens over the whole candidate set rather than a truncated head: a resource
+   * that text relevance alone placed near the bottom of the candidates can still be promoted, which
+   * is the entire point. The weight is bounded, so popularity reorders results of comparable
+   * textual relevance instead of overriding relevance outright.
+   *
+   * @param best the best-scoring hit per subject URI, in descending textual relevance
+   * @return the hits ranked by weighted relevance, best first
+   */
+  private List<SearchResult> rankByPopularity(Map<String, SearchResult> best) {
+    Map<String, Double> weights = usageService.weights(best.keySet());
+    return best.entrySet().stream()
+        .map(entry -> weighted(entry.getValue(), weights.getOrDefault(entry.getKey(), 1.0)))
+        .sorted(Comparator.comparingDouble(SearchResult::score).reversed())
+        .toList();
+  }
+
+  private static SearchResult weighted(SearchResult result, double weight) {
+    return new SearchResult(result.subject(), result.match(), result.score() * weight);
   }
 
   /**

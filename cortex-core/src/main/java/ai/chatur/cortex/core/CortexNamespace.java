@@ -1,6 +1,7 @@
 package ai.chatur.cortex.core;
 
 import java.util.UUID;
+import org.apache.jena.rdf.model.Property;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.rdf.model.ResourceFactory;
 
@@ -12,6 +13,17 @@ public final class CortexNamespace {
 
   /** The named graph holding per-statement provenance within the assertions dataset. */
   public static final Resource PROVENANCE = ResourceFactory.createResource(NS + "provenance");
+
+  /**
+   * The named graph holding per-resource view counts within the assertions dataset.
+   *
+   * <p>Like {@link #PROVENANCE} this is a reserved graph, not a branch and not part of the approved
+   * assertions: it records how the graph is <em>used</em> rather than what it claims.
+   */
+  public static final Resource USAGE = ResourceFactory.createResource(NS + "usage");
+
+  /** The property recording how many times a resource has been viewed, within {@link #USAGE}. */
+  public static final Property VIEW_COUNT = ResourceFactory.createProperty(NS + "viewCount");
 
   private CortexNamespace() {}
 

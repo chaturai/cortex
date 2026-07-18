@@ -38,6 +38,14 @@ class SearchTests {
           :assignedTo kb:SearchAgent ;
           rdfs:label "Budget planning" ;
           rdfs:comment "Feeds the quarterly report cycle" .
+
+      kb:AlphaReport a :Task ;
+          :assignedTo kb:SearchAgent ;
+          rdfs:label "annual summary" .
+
+      kb:BetaReport a :Task ;
+          :assignedTo kb:SearchAgent ;
+          rdfs:label "annual summary" .
       """;
 
   private Cortex cortex;
@@ -166,6 +174,43 @@ class SearchTests {
         .as("the label and comment of one resource are separate documents but one result")
         .extracting(result -> result.subject().localName())
         .containsOnlyOnce("communication-api");
+  }
+
+  /**
+   * Two resources carry the same label, so textual relevance cannot separate them; only how often
+   * each has been opened can. Viewing one is what promotes it.
+   */
+  @Test
+  void shouldRankFrequentlyViewedResourcesHigher() {
+    assertThat(cortex.searchSubjects("annual summary"))
+        .as("both identically labelled resources match before anything is viewed")
+        .extracting(result -> result.subject().localName())
+        .contains("AlphaReport", "BetaReport");
+
+    for (int view = 0; view < 10; view++) {
+      cortex.describe("example://kb/BetaReport");
+    }
+
+    List<SearchResult> ranked = cortex.searchSubjects("annual summary");
+
+    assertThat(ranked.getFirst().subject().localName())
+        .as("the repeatedly opened resource outranks its identically labelled twin")
+        .isEqualTo("BetaReport");
+    assertThat(ranked.getFirst().score()).isGreaterThan(ranked.getLast().score());
+  }
+
+  @Test
+  void shouldNotLetPopularityOverrideTextualRelevance() {
+    for (int view = 0; view < 500; view++) {
+      cortex.describe("example://kb/BetaReport");
+    }
+
+    List<SearchResult> results = cortex.searchSubjects("quarterly");
+
+    assertThat(results)
+        .as("a heavily viewed resource that does not match the text must not appear at all")
+        .extracting(result -> result.subject().localName())
+        .doesNotContain("BetaReport");
   }
 
   @Test
