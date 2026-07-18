@@ -48,17 +48,18 @@ Spring's `Resource`. The Spring layer reads content as UTF-8 and passes strings 
 wires the same eleven services `CortexAutoConfiguration` does. If you add a core service, **both**
 need updating or the two assembly paths drift.
 
-The autoconfigure split is core / web / mcp / backup (see `AutoConfiguration.imports`), grouped by how
-the graph is *delivered* — to the process, to humans, to agents, to durable storage — not by domain.
-That grouping is the only reason `cortex.web.enabled`, `cortex.mcp.enabled`, and
-`cortex.backup.enabled` can exist as single switches. Adding a domain-grouped config regresses it.
+The autoconfigure split is core / web / mcp / backup / restore (see `AutoConfiguration.imports`),
+grouped by how the graph is *delivered* — to the process, to humans, to agents, to durable storage,
+and seeded back from it — not by domain. That grouping is the only reason `cortex.web.enabled`,
+`cortex.mcp.enabled`, `cortex.backup.enabled`, and `cortex.restore.enabled` can exist as single
+switches. Adding a domain-grouped config regresses it.
 
 `CortexS3AutoConfiguration` is the one entry in `AutoConfiguration.imports` that is *not* a delivery
 mechanism — it registers an S3 client and nothing else, gated on `cortex.s3.enabled`. It is separate
-so that switch is real: backups are S3's only consumer today, and folding it into
-`CortexBackupAutoConfiguration` would make `cortex.s3.enabled` a flag that must always equal
-`cortex.backup.enabled`, which is no switch at all. `CortexBackupAutoConfiguration` still requires
-it, and says so at startup.
+so that switch is real: backup and restore are S3's consumers, and folding it into either would make
+`cortex.s3.enabled` a flag that must always equal that consumer's switch, which is no switch at all.
+Both `CortexBackupAutoConfiguration` and `CortexRestoreAutoConfiguration` require it, independently of
+each other, and each says so at startup.
 
 **`BackupService` is deliberately not on `Cortex`.** It lives in `cortex-core`'s `core.store` package,
 beside `AssertionStore` — that opens TDB2, this snapshots it — and is registered *only* by
@@ -171,6 +172,26 @@ human. Re-importing an export therefore stages nothing (it's all already approve
 `EndToEndIntegrationTests` asserts, and *why* the round-trip there is byte-identical. It is no longer
 evidence of a restore. Backing up is `cortex.backup.enabled` (the whole dataset, via TDB2). Don't
 reintroduce a write path that reaches the default graph without passing through review.
+
+**Restore is the inverse of a *backup*, not of `/export`, and it is the one sanctioned write path
+that reaches the default graph without review** — because it isn't ingesting new claims, it's
+reloading a TDB2 snapshot of already-approved state (assertions + branches + provenance). It lives in
+`RestoreService` (`cortex-core`, `core.store`, beside `BackupService`), `RestoreRunner` (S3 download,
+`spring.backup`, beside `BackupRunner`), and its own `CortexRestoreAutoConfiguration` gated on
+`cortex.restore.enabled`. That switch is deliberately independent of `cortex.backup.enabled` (a
+replica may restore from another instance's uploads without scheduling its own), exactly as
+`cortex.s3.enabled` is independent — same reasoning, don't fold them. Restore is a **wipe-and-load
+that runs on every boot**: `RestoreService.restore` does `clear()` + `RDFDataMgr.read` + prefix
+re-seed in **one** write transaction, so a parse failure aborts and leaves the prior store intact
+rather than a half-empty one — don't split that transaction. It runs from `RestoreBootstrap`
+(`InitializingBean`) during context refresh, *before* the web server accepts traffic and *before*
+`InferenceInitializer`'s `ApplicationReadyEvent`, which is what lets the closure and Lucene index
+rebuild over the restored data with no extra wiring — don't move it to an `ApplicationRunner` or a
+ready-event listener, both of which run too late. Like `CortexBackupAutoConfiguration` it validates
+persistence + S3 + the AWS classpath in its **constructor** and names no AWS type in a signature (the
+`S3Client` bean lives in the `@ConditionalOnClass`-gated `RestoreExecutionConfiguration`, the
+`BackupJobConfiguration` pattern). An empty bucket is a *skip*, not a failure — a first-ever deploy
+has nothing to restore; every other failure propagates and fails the boot.
 
 ## Testing
 

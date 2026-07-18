@@ -24,6 +24,7 @@ import org.springframework.core.io.Resource;
  * @param mcp the MCP server settings
  * @param s3 the S3 client settings
  * @param backup the scheduled backup settings
+ * @param restore the restore-on-startup settings
  */
 @ConfigurationProperties(prefix = "cortex")
 public record CortexProperties(
@@ -35,7 +36,8 @@ public record CortexProperties(
     @DefaultValue Web web,
     @DefaultValue Mcp mcp,
     @DefaultValue S3 s3,
-    @DefaultValue Backup backup) {
+    @DefaultValue Backup backup,
+    @DefaultValue Restore restore) {
 
   /**
    * Settings for the web UI auto-configured by {@link
@@ -154,4 +156,32 @@ public record CortexProperties(
       @DefaultValue("false") boolean enabled,
       @DefaultValue("24h") Duration interval,
       @DefaultValue("cortex/") String keyPrefix) {}
+
+  /**
+   * Settings for the restore-on-startup step auto-configured by {@link
+   * ai.chatur.cortex.spring.backup.CortexRestoreAutoConfiguration}.
+   *
+   * <p>Disabled by default. When enabled, the latest backup under {@code keyPrefix} is downloaded
+   * and loaded into the assertions store during startup, before the application serves traffic —
+   * treating S3 as the source of truth and the local store as replaceable. It is a wipe-and-load
+   * that runs on every boot, so it requires {@link CortexProperties#persistent()} to be {@code
+   * true} and an enabled, configured {@link S3} client, exactly as backups do; the same {@code
+   * software.amazon.awssdk:s3} and {@code software.amazon.awssdk:apache-client} dependencies must
+   * be on the classpath. A bucket with no backup yet is not an error — a first-ever deployment
+   * starts empty.
+   *
+   * <p>The switch is independent of {@link Backup#enabled()}: an instance may restore without
+   * scheduling backups of its own (a replica seeded from another's uploads) or take backups without
+   * restoring. Because the two are independent, {@code keyPrefix} is configured here rather than
+   * read from {@link Backup#keyPrefix()}; it defaults to the same {@code cortex/}, so an instance
+   * that both backs up and restores works with no extra configuration, but if {@code
+   * cortex.backup.key-prefix} is customized then {@code cortex.restore.key-prefix} must be set to
+   * match for the restore to find the uploads.
+   *
+   * @param enabled whether the latest backup is restored at startup
+   * @param keyPrefix the S3 key prefix backups were uploaded under; only objects beneath it are
+   *     considered, and the most recent is restored
+   */
+  public record Restore(
+      @DefaultValue("false") boolean enabled, @DefaultValue("cortex/") String keyPrefix) {}
 }
