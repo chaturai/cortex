@@ -7,9 +7,12 @@ import ai.chatur.cortex.core.CortexNamespace;
 import ai.chatur.cortex.core.Terms;
 import ai.chatur.cortex.core.jena.Rdf;
 import ai.chatur.cortex.core.jena.Sparql;
+import ai.chatur.cortex.core.store.TextIndexFactory;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -26,6 +29,8 @@ import org.apache.jena.rdf.model.RDFNode;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.rdf.model.ResourceFactory;
 import org.apache.jena.riot.Lang;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.queryparser.classic.QueryParserBase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,14 +47,53 @@ public class QueryService {
 
   private static final Logger log = LoggerFactory.getLogger(QueryService.class);
 
+  /** Tokens this short are matched exactly — two edits would reach most of the index. */
+  private static final int SHORT_TOKEN = 3;
+
+  /** Tokens up to this length allow one edit; longer ones allow two. */
+  private static final int MEDIUM_TOKEN = 6;
+
+  /** How much more a match in a resource's name counts than one in its description. */
+  private static final int LABEL_BOOST = 3;
+
+  /**
+   * The most Lucene documents a search may retrieve.
+   *
+   * <p>The index holds one document per indexed literal, so this bounds documents rather than
+   * subjects: a resource matching on both its label and its comment consumes two. Without a cap a
+   * broad query walks the whole graph.
+   */
+  private static final int CANDIDATE_LIMIT = 200;
+
+  /**
+   * Searches labels and comments as separate branches, weighting names above descriptions.
+   *
+   * <p>Each branch names the property it searches. That is what makes {@code ?match} usable: the
+   * text index resolves the property to its field and returns <em>that</em> field's stored literal,
+   * whereas a field-qualified query string steers matching only and leaves retrieval pointed at the
+   * default field, yielding a null match for every comment hit.
+   */
   private static final Query SEARCH_QUERY =
       QueryFactory.create(
           """
           PREFIX text: <http://jena.apache.org/text#>
+          PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
           SELECT ?subject ?score ?match
-          WHERE { (?subject ?score ?match) text:query ?text }
+          WHERE {
+            {
+              (?subject ?rawScore ?match) text:query (rdfs:label ?text %d) .
+              BIND(?rawScore * %d AS ?score)
+            }
+            UNION
+            {
+              (?subject ?rawScore ?match) text:query (rdfs:comment ?text %d) .
+              BIND(?rawScore AS ?score)
+            }
+          }
           ORDER BY DESC(?score)
-          """);
+          LIMIT %d
+          """
+              .formatted(CANDIDATE_LIMIT, LABEL_BOOST, CANDIDATE_LIMIT, CANDIDATE_LIMIT));
 
   private final Dataset inferences;
   private final Dataset assertions;
@@ -219,37 +263,105 @@ public class QueryService {
   /**
    * Searches the full-text index and returns the matching subjects.
    *
-   * <p>Each term of the input is matched approximately, so small typos and spelling variations
-   * still find their target.
+   * <p>Longer terms are matched approximately, so small typos and spelling variations still find
+   * their target. Every term must occur in the same indexed literal, so adding a word narrows the
+   * results.
+   *
+   * <p>The index holds one document per literal, so a resource matching on both its label and its
+   * comment produces several hits; each resource is reported once, keeping its best-scoring match.
    *
    * @param text the text to search for
    * @return the matching subjects ranked best first, empty if nothing matches
    */
   public List<SearchResult> searchSubjects(String text) {
     Literal literal = ResourceFactory.createPlainLiteral(getFuzzyQuery(text));
-    List<SearchResult> results = new ArrayList<>();
+    // insertion-ordered, and the query is already sorted by descending score, so keeping the first
+    // hit per subject both de-duplicates and preserves the ranking
+    Map<String, SearchResult> best = new LinkedHashMap<>();
     Sparql.on(inferences, SEARCH_QUERY)
         .bind("text", literal)
         .forEachSolution(
             solution -> {
               Resource subject = solution.getResource("subject");
               if (subject.isURIResource()) {
-                results.add(
-                    new SearchResult(
-                        Terms.of(subject, ontModel),
-                        solution.contains("match")
-                            ? solution.getLiteral("match").getLexicalForm()
-                            : null));
+                best.computeIfAbsent(
+                    subject.getURI(),
+                    uri ->
+                        new SearchResult(
+                            Terms.of(subject, ontModel),
+                            solution.contains("match")
+                                ? solution.getLiteral("match").getLexicalForm()
+                                : null,
+                            solution.contains("score")
+                                ? solution.getLiteral("score").getDouble()
+                                : 0));
               }
             });
-    return results;
+    return List.copyOf(best.values());
   }
 
+  /**
+   * Builds the Lucene query string for the given user input.
+   *
+   * <p>The input is tokenized with {@link TextIndexFactory#analyzer() the index's own analyzer}
+   * rather than split on whitespace. Lucene's classic query parser resolves fuzzy terms through
+   * {@code Analyzer.normalize}, which lower-cases but does not tokenize, so a hand-split term such
+   * as {@code communication-api} would be looked up whole against an index whose tokenizer had
+   * already split it into {@code communication} and {@code api} — and match nothing.
+   *
+   * <p>Every token is required, so adding a word narrows the result set rather than widening it.
+   */
   String getFuzzyQuery(String text) {
-    return Arrays.stream(text.trim().split("\\s+"))
-        .filter(term -> !term.isBlank())
-        .map(QueryParserBase::escape)
-        .map(term -> term + "~")
+    List<String> tokens = analyze(text);
+    if (tokens.isEmpty()) {
+      return "";
+    }
+    // every token is required, so all of them must occur in the one literal a document holds; the
+    // query runs against the label and comment fields separately, either of which may satisfy it
+    return tokens.stream()
+        .map(token -> "+" + QueryParserBase.escape(token) + fuzziness(token))
         .collect(Collectors.joining(" "));
+  }
+
+  /**
+   * Tokenizes the input exactly as the indexer tokenized the literals being searched.
+   *
+   * @param text the raw user input
+   * @return the analyzed tokens, empty if the input holds nothing searchable
+   */
+  private static List<String> analyze(String text) {
+    List<String> tokens = new ArrayList<>();
+    try (TokenStream stream =
+        TextIndexFactory.analyzer().tokenStream(TextIndexFactory.LABEL_FIELD, text)) {
+      CharTermAttribute term = stream.addAttribute(CharTermAttribute.class);
+      stream.reset();
+      while (stream.incrementToken()) {
+        tokens.add(term.toString());
+      }
+      stream.end();
+    } catch (IOException e) {
+      // tokenizing an in-memory string cannot perform I/O; the checked exception is an artifact of
+      // Lucene's Reader-based API
+      throw new UncheckedIOException("Failed to analyze search text", e);
+    }
+    return tokens;
+  }
+
+  /**
+   * Grades edit distance by token length.
+   *
+   * <p>A bare {@code ~} is edit distance 2, which on a short token matches a large share of the
+   * index — {@code api} would reach every three-to-five character term. Short tokens are therefore
+   * matched exactly, and only longer ones, where two edits are a small fraction of the token, get
+   * the full allowance.
+   *
+   * @param token the analyzed token
+   * @return the fuzziness suffix to append, empty for tokens too short to match approximately
+   */
+  private static String fuzziness(String token) {
+    if (token.length() <= SHORT_TOKEN) {
+      return "";
+    }
+    return token.length() <= MEDIUM_TOKEN ? "~1" : "~2";
   }
 }

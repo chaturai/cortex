@@ -43,7 +43,7 @@ class SearchControllerTests {
   void searchShouldDelegateToSearchSubjectsWhenQueryIsPresent() {
     SearchResult hit =
         new SearchResult(
-            new Term("kb", "SearchTask", "example://kb/SearchTask"), "quarterly report");
+            new Term("kb", "SearchTask", "example://kb/SearchTask"), "quarterly report", 1.5);
     SearchController controller = new SearchController(new FakeSearch(List.of(hit)));
     Model model = new ExtendedModelMap();
 

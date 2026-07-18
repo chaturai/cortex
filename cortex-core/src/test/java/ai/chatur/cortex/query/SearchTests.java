@@ -28,6 +28,16 @@ class SearchTests {
       kb:SearchTask a :Task ;
           :assignedTo kb:SearchAgent ;
           rdfs:label "quarterly report" .
+
+      kb:communication-api a :Task ;
+          :assignedTo kb:SearchAgent ;
+          rdfs:label "Communication API" ;
+          rdfs:comment "Handles inbound and outbound messaging for partner systems" .
+
+      kb:BudgetTask a :Task ;
+          :assignedTo kb:SearchAgent ;
+          rdfs:label "Budget planning" ;
+          rdfs:comment "Feeds the quarterly report cycle" .
       """;
 
   private Cortex cortex;
@@ -56,5 +66,116 @@ class SearchTests {
             .findFirst()
             .orElseThrow();
     assertThat(hit.match()).as("the matching indexed literal is reported").isNotNull();
+  }
+
+  /**
+   * Regression: query text must pass through the same analysis chain as indexed text.
+   *
+   * <p>Splitting the query on whitespace and appending {@code ~} forces every token down Lucene's
+   * fuzzy multi-term path, which resolves terms via {@code Analyzer.normalize()} — lower-casing
+   * only, no tokenization. {@code communication-api} therefore stayed one term, while the index
+   * (tokenized by {@code StandardAnalyzer}'s UAX#29 tokenizer) held only {@code communication} and
+   * {@code api}. At the default edit distance of 2 nothing matched, and the search silently
+   * returned nothing.
+   */
+  @Test
+  void shouldFindResourceWhenQueryIsHyphenated() {
+    List<SearchResult> results = cortex.searchSubjects("communication-api");
+
+    assertThat(results)
+        .as("a hyphenated query must match the same resource as its whitespace-separated form")
+        .extracting(result -> result.subject().localName())
+        .contains("communication-api");
+  }
+
+  @Test
+  void shouldFindResourceWhenQueryIsWhitespaceSeparated() {
+    List<SearchResult> results = cortex.searchSubjects("communication api");
+
+    assertThat(results)
+        .as("the already-working path must keep working")
+        .extracting(result -> result.subject().localName())
+        .contains("communication-api");
+  }
+
+  /**
+   * Separators that the tokenizer treats as word breaks must all reach the same resource.
+   *
+   * <p>{@code _} and {@code .} are deliberately absent: UAX#29 joins letters across them ({@code
+   * ExtendNumLet} and {@code MidNumLet} — the rule that keeps {@code example.com} in one piece), so
+   * {@code communication_api} is a single token. That is consistent rather than broken, because a
+   * literal written that way indexes as a single token too; query and index analysis still agree,
+   * which is the property that matters.
+   */
+  @Test
+  void shouldFindResourceRegardlessOfSeparator() {
+    for (String query : List.of("communication/api", "communication,api", "Communication API")) {
+      assertThat(cortex.searchSubjects(query))
+          .as("query %s must analyze to the same tokens as the indexed label", query)
+          .extracting(result -> result.subject().localName())
+          .contains("communication-api");
+    }
+  }
+
+  @Test
+  void shouldNarrowResultsAsTermsAreAdded() {
+    List<SearchResult> broad = cortex.searchSubjects("communication");
+    List<SearchResult> narrow = cortex.searchSubjects("communication quarterly");
+
+    assertThat(broad).as("the single-term query matches the Communication API task").isNotEmpty();
+    assertThat(narrow)
+        .as("every term is required, so an unrelated extra term must not widen the results")
+        .hasSizeLessThanOrEqualTo(broad.size());
+    assertThat(narrow)
+        .as("no resource carries both terms in one literal")
+        .extracting(result -> result.subject().localName())
+        .doesNotContain("communication-api");
+  }
+
+  @Test
+  void shouldFindResourceByComment() {
+    List<SearchResult> results = cortex.searchSubjects("messaging");
+
+    assertThat(results)
+        .as("comments are indexed in their own field and remain searchable")
+        .extracting(result -> result.subject().localName())
+        .contains("communication-api");
+    assertThat(results.getFirst().match())
+        .as("the matching literal is reported for comment hits too, not only label hits")
+        .isNotNull();
+  }
+
+  @Test
+  void shouldRankLabelMatchesAboveCommentMatches() {
+    List<SearchResult> results = cortex.searchSubjects("quarterly");
+
+    assertThat(results)
+        .as("both the label of SearchTask and the comment of BudgetTask contain the term")
+        .extracting(result -> result.subject().localName())
+        .containsExactly("SearchTask", "BudgetTask");
+    assertThat(results.getFirst().score())
+        .as("a name match outranks a description match")
+        .isGreaterThan(results.getLast().score());
+  }
+
+  @Test
+  void shouldReportEachSubjectOnce() {
+    List<SearchResult> results = cortex.searchSubjects("communication");
+
+    assertThat(results)
+        .as("the label and comment of one resource are separate documents but one result")
+        .extracting(result -> result.subject().localName())
+        .containsOnlyOnce("communication-api");
+  }
+
+  @Test
+  void shouldNotMatchUnrelatedShortTokensFuzzily() {
+    List<SearchResult> results = cortex.searchSubjects("api");
+
+    assertThat(results)
+        .as("short tokens are matched exactly, so 'api' must not fuzzily reach 'a', 'apt', etc.")
+        .isNotEmpty()
+        .allSatisfy(
+            result -> assertThat(result.subject().localName()).isEqualTo("communication-api"));
   }
 }

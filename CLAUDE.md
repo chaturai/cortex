@@ -154,6 +154,40 @@ Three competing constructions previously produced contradictory encodings for th
 than Jena's `shortForm`, which returns the first `startsWith` hit over a `HashMap` and so isn't
 deterministic. Don't hand-roll a fourth.
 
+**Search query text must be tokenized by the index's own analyzer.** `QueryService.getFuzzyQuery`
+runs the user's input through `TextIndexFactory.analyzer()`, *not* `split("\\s+")`. Lucene's classic
+parser resolves fuzzy and other multi-term queries via `Analyzer.normalize()`, which lower-cases but
+does **not** tokenize — so a hand-split term is looked up whole against an index the tokenizer already
+split differently. That is why `communication-api` returned nothing while `communication api` worked:
+the index held `communication` and `api`, and at the default edit distance of 2 neither is within
+reach of the 17-character term. The analyzer is a single shared instance for exactly this reason; two
+instances that tokenize differently would break search silently rather than loudly. `SearchTests` pins
+the hyphen, slash, and comma cases. Note `_` and `.` legitimately do **not** split (UAX#29 joins
+letters across them, the rule that keeps `example.com` intact) — a literal written that way indexes as
+one token too, so query and index still agree.
+
+**Fuzziness is graded by token length, never bare `~`.** A bare `~` is edit distance 2, which on a
+three-character token like `api` reaches most short terms in the index. Tokens ≤ 3 characters are
+matched exactly, 4–6 allow one edit, longer ones two.
+
+**`text:query` must name the property to make `?match` usable.** The index resolves the property to
+its field and returns *that* field's stored literal. A field-qualified query string (`comment:(...)`)
+steers matching only — retrieval stays pointed at the default field, so every comment hit reports a
+**null** match while still appearing in results. `SEARCH_QUERY` is therefore a UNION of a
+`rdfs:label` branch and a `rdfs:comment` branch, which is also where the label boost is applied
+(`BIND(?rawScore * 3 AS ?score)`) rather than in the query string. `SearchTests` pins both the
+non-null comment match and the label-outranks-comment ordering.
+
+**The index holds one document per literal, so search de-duplicates by subject.** A resource matching
+on both its label and its comment produces two Lucene documents and therefore two solutions.
+`searchSubjects` keeps the first hit per subject URI; the query is already sorted by descending score,
+so first is best. The raw-text `search(String)` variant is deliberately *not* de-duplicated — it
+reports the index verbatim.
+
+**`rdf:type` is deliberately not indexed.** It was, into the same field as `rdfs:label`, which mixed
+class-URI tokens into the same relevance space as human-readable prose and gave every typed resource
+the same filler terms.
+
 **`cortex.persistent` means assertions only.** The inference closure and the Lucene text index are
 *always* in-memory and rebuilt at startup — they're a derived cache. There is no `indexLocation`.
 
