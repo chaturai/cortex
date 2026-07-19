@@ -292,12 +292,14 @@ public class CortexAutoConfiguration {
    * shutdown does not discard them.
    *
    * @param assertions the assertions dataset, whose usage graph holds the counts
+   * @param properties the Cortex configuration properties, supplying the view half-life
    * @return the usage service
    */
   @Bean(destroyMethod = "flush")
   @ConditionalOnMissingBean
-  UsageService usageService(@Qualifier("assertions") Dataset assertions) {
-    return new UsageService(assertions);
+  UsageService usageService(
+      @Qualifier("assertions") Dataset assertions, CortexProperties properties) {
+    return new UsageService(assertions, properties.search().viewHalfLife());
   }
 
   /**

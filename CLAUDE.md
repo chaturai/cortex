@@ -158,16 +158,16 @@ deterministic. Don't hand-roll a fourth.
 runs the user's input through `TextIndexFactory.analyzer()`, *not* `split("\\s+")`. Lucene's classic
 parser resolves fuzzy and other multi-term queries via `Analyzer.normalize()`, which lower-cases but
 does **not** tokenize — so a hand-split term is looked up whole against an index the tokenizer already
-split differently. That is why `communication-api` returned nothing while `communication api` worked:
-the index held `communication` and `api`, and at the default edit distance of 2 neither is within
-reach of the 17-character term. The analyzer is a single shared instance for exactly this reason; two
+split differently. That is why `note-pad` returned nothing while `note pad` worked:
+the index held `note` and `pad`, and at the default edit distance of 2 neither is within
+reach of the 8-character term. The analyzer is a single shared instance for exactly this reason; two
 instances that tokenize differently would break search silently rather than loudly. `SearchTests` pins
 the hyphen, slash, and comma cases. Note `_` and `.` legitimately do **not** split (UAX#29 joins
 letters across them, the rule that keeps `example.com` intact) — a literal written that way indexes as
 one token too, so query and index still agree.
 
 **Fuzziness is graded by token length, never bare `~`.** A bare `~` is edit distance 2, which on a
-three-character token like `api` reaches most short terms in the index. Tokens ≤ 3 characters are
+three-character token like `pad` reaches most short terms in the index. Tokens ≤ 3 characters are
 matched exactly, 4–6 allow one edit, longer ones two.
 
 **`text:query` must name the property to make `?match` usable.** The index resolves the property to
@@ -198,11 +198,21 @@ restored counts at the next flush. The current value is re-read *inside* the flu
 making the update a true increment; `UsageServiceTests` pins this. Don't "optimize" it into a cached
 map — the bug it reintroduces is silent and only shows up on restored replicas.
 
-**The popularity weight is bounded and saturating** (`1 + count/(count+5)`, capped at 2×). Raw counts
+**The popularity weight is bounded and saturating** (`1 + score/(score+5)`, capped at 2×). Raw counts
 would let one hot resource swamp textual relevance, and since boosted results get viewed more, an
 unbounded weight compounds into a rich-get-richer loop new resources cannot break into. Re-ranking
 happens over the whole candidate set, not a truncated head — truncating first means a popular
 resource low in the candidates can never be promoted, which defeats the point.
+
+**`cortex:viewCount` is a decayed score, not a tally, and is meaningless without
+`cortex:viewCountUpdated`.** It halves every `cortex.search.view-half-life` (default `30d`; `0`
+disables decay). Rather than storing a timestamped event per view — unbounded growth — each resource
+keeps one score plus the instant it was last recomputed; the discount is applied **on read as well as
+on write**, or a resource nobody has opened since would keep a stale score until someone opened it
+again. Changing the half-life takes effect immediately with no history to migrate. A **missing**
+timestamp means "current", not the epoch: counts written before decay existed would otherwise be
+wiped on first read. `CortexBuilder.DEFAULT_VIEW_HALF_LIFE` and the property default must stay equal —
+the two assembly paths are required to produce identical graphs.
 
 **`rdf:type` is deliberately not indexed.** It was, into the same field as `rdfs:label`, which mixed
 class-URI tokens into the same relevance space as human-readable prose and gave every typed resource
@@ -275,10 +285,8 @@ has nothing to restore; every other failure propagates and fails the boot.
   upload is a copy, not a move, deliberately: deleting the local file on a successful upload would
   make a bucket misconfiguration destructive. This is the `.cortex/` residue problem below, now with
   a scheduler behind it. Retention belongs to the volume, or to an S3 lifecycle rule.
-- View counts have **no time decay**: a resource popular a year ago still outranks a newer one
-  forever. The bound keeps this from being severe, but recency weighting is the natural next step.
-  Counts also never expire for deleted resources — a rejected or removed subject keeps its row in
-  `cortex://usage`.
+- Nothing prunes `cortex://usage`: a rejected or removed subject keeps its row forever. Decay makes
+  the score irrelevant quickly, but the triples remain.
 - Counts are lost under the default `cortex.persistent=false`, since the assertions dataset is then
   in-memory. That matches the text index and the inference closure, and is a non-issue in production.
 - ~335 MB of gitignored `.cortex/` runtime residue sits in the tree (repo root and the example) from

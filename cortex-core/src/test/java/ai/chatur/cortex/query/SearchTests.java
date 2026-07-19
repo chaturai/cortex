@@ -29,10 +29,10 @@ class SearchTests {
           :assignedTo kb:SearchAgent ;
           rdfs:label "quarterly report" .
 
-      kb:communication-api a :Task ;
+      kb:note-pad a :Task ;
           :assignedTo kb:SearchAgent ;
-          rdfs:label "Communication API" ;
-          rdfs:comment "Handles inbound and outbound messaging for partner systems" .
+          rdfs:label "Note Pad" ;
+          rdfs:comment "Collects sketches and jottings for later" .
 
       kb:BudgetTask a :Task ;
           :assignedTo kb:SearchAgent ;
@@ -81,29 +81,28 @@ class SearchTests {
    *
    * <p>Splitting the query on whitespace and appending {@code ~} forces every token down Lucene's
    * fuzzy multi-term path, which resolves terms via {@code Analyzer.normalize()} — lower-casing
-   * only, no tokenization. {@code communication-api} therefore stayed one term, while the index
-   * (tokenized by {@code StandardAnalyzer}'s UAX#29 tokenizer) held only {@code communication} and
-   * {@code api}. At the default edit distance of 2 nothing matched, and the search silently
-   * returned nothing.
+   * only, no tokenization. {@code note-pad} therefore stayed one term, while the index (tokenized
+   * by {@code StandardAnalyzer}'s UAX#29 tokenizer) held only {@code note} and {@code pad}. At the
+   * default edit distance of 2 nothing matched, and the search silently returned nothing.
    */
   @Test
   void shouldFindResourceWhenQueryIsHyphenated() {
-    List<SearchResult> results = cortex.searchSubjects("communication-api");
+    List<SearchResult> results = cortex.searchSubjects("note-pad");
 
     assertThat(results)
         .as("a hyphenated query must match the same resource as its whitespace-separated form")
         .extracting(result -> result.subject().localName())
-        .contains("communication-api");
+        .contains("note-pad");
   }
 
   @Test
   void shouldFindResourceWhenQueryIsWhitespaceSeparated() {
-    List<SearchResult> results = cortex.searchSubjects("communication api");
+    List<SearchResult> results = cortex.searchSubjects("note pad");
 
     assertThat(results)
         .as("the already-working path must keep working")
         .extracting(result -> result.subject().localName())
-        .contains("communication-api");
+        .contains("note-pad");
   }
 
   /**
@@ -111,43 +110,43 @@ class SearchTests {
    *
    * <p>{@code _} and {@code .} are deliberately absent: UAX#29 joins letters across them ({@code
    * ExtendNumLet} and {@code MidNumLet} — the rule that keeps {@code example.com} in one piece), so
-   * {@code communication_api} is a single token. That is consistent rather than broken, because a
-   * literal written that way indexes as a single token too; query and index analysis still agree,
-   * which is the property that matters.
+   * {@code note_pad} is a single token. That is consistent rather than broken, because a literal
+   * written that way indexes as a single token too; query and index analysis still agree, which is
+   * the property that matters.
    */
   @Test
   void shouldFindResourceRegardlessOfSeparator() {
-    for (String query : List.of("communication/api", "communication,api", "Communication API")) {
+    for (String query : List.of("note/pad", "note,pad", "Note Pad")) {
       assertThat(cortex.searchSubjects(query))
           .as("query %s must analyze to the same tokens as the indexed label", query)
           .extracting(result -> result.subject().localName())
-          .contains("communication-api");
+          .contains("note-pad");
     }
   }
 
   @Test
   void shouldNarrowResultsAsTermsAreAdded() {
-    List<SearchResult> broad = cortex.searchSubjects("communication");
-    List<SearchResult> narrow = cortex.searchSubjects("communication quarterly");
+    List<SearchResult> broad = cortex.searchSubjects("note");
+    List<SearchResult> narrow = cortex.searchSubjects("note quarterly");
 
-    assertThat(broad).as("the single-term query matches the Communication API task").isNotEmpty();
+    assertThat(broad).as("the single-term query matches the Note Pad task").isNotEmpty();
     assertThat(narrow)
         .as("every term is required, so an unrelated extra term must not widen the results")
         .hasSizeLessThanOrEqualTo(broad.size());
     assertThat(narrow)
         .as("no resource carries both terms in one literal")
         .extracting(result -> result.subject().localName())
-        .doesNotContain("communication-api");
+        .doesNotContain("note-pad");
   }
 
   @Test
   void shouldFindResourceByComment() {
-    List<SearchResult> results = cortex.searchSubjects("messaging");
+    List<SearchResult> results = cortex.searchSubjects("sketches");
 
     assertThat(results)
         .as("comments are indexed in their own field and remain searchable")
         .extracting(result -> result.subject().localName())
-        .contains("communication-api");
+        .contains("note-pad");
     assertThat(results.getFirst().match())
         .as("the matching literal is reported for comment hits too, not only label hits")
         .isNotNull();
@@ -168,12 +167,12 @@ class SearchTests {
 
   @Test
   void shouldReportEachSubjectOnce() {
-    List<SearchResult> results = cortex.searchSubjects("communication");
+    List<SearchResult> results = cortex.searchSubjects("note");
 
     assertThat(results)
         .as("the label and comment of one resource are separate documents but one result")
         .extracting(result -> result.subject().localName())
-        .containsOnlyOnce("communication-api");
+        .containsOnlyOnce("note-pad");
   }
 
   /**
@@ -215,12 +214,11 @@ class SearchTests {
 
   @Test
   void shouldNotMatchUnrelatedShortTokensFuzzily() {
-    List<SearchResult> results = cortex.searchSubjects("api");
+    List<SearchResult> results = cortex.searchSubjects("pad");
 
     assertThat(results)
-        .as("short tokens are matched exactly, so 'api' must not fuzzily reach 'a', 'apt', etc.")
+        .as("short tokens are matched exactly, so 'pad' must not fuzzily reach 'pat', 'bad', etc.")
         .isNotEmpty()
-        .allSatisfy(
-            result -> assertThat(result.subject().localName()).isEqualTo("communication-api"));
+        .allSatisfy(result -> assertThat(result.subject().localName()).isEqualTo("note-pad"));
   }
 }

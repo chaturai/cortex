@@ -22,8 +22,17 @@ public final class CortexNamespace {
    */
   public static final Resource USAGE = ResourceFactory.createResource(NS + "usage");
 
-  /** The property recording how many times a resource has been viewed, within {@link #USAGE}. */
+  /**
+   * The property recording a resource's time-decayed view score, within {@link #USAGE}.
+   *
+   * <p>Not a plain tally: the value is discounted towards zero as it ages, so it is only meaningful
+   * alongside {@link #VIEW_COUNT_UPDATED}, which says when it was last brought up to date.
+   */
   public static final Property VIEW_COUNT = ResourceFactory.createProperty(NS + "viewCount");
+
+  /** The instant {@link #VIEW_COUNT} was last recomputed, within {@link #USAGE}. */
+  public static final Property VIEW_COUNT_UPDATED =
+      ResourceFactory.createProperty(NS + "viewCountUpdated");
 
   private CortexNamespace() {}
 

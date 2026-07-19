@@ -338,8 +338,8 @@ public class QueryService {
    * <p>The input is tokenized with {@link TextIndexFactory#analyzer() the index's own analyzer}
    * rather than split on whitespace. Lucene's classic query parser resolves fuzzy terms through
    * {@code Analyzer.normalize}, which lower-cases but does not tokenize, so a hand-split term such
-   * as {@code communication-api} would be looked up whole against an index whose tokenizer had
-   * already split it into {@code communication} and {@code api} — and match nothing.
+   * as {@code note-pad} would be looked up whole against an index whose tokenizer had already split
+   * it into {@code note} and {@code pad} — and match nothing.
    *
    * <p>Every token is required, so adding a word narrows the result set rather than widening it.
    */
@@ -383,7 +383,7 @@ public class QueryService {
    * Grades edit distance by token length.
    *
    * <p>A bare {@code ~} is edit distance 2, which on a short token matches a large share of the
-   * index — {@code api} would reach every three-to-five character term. Short tokens are therefore
+   * index — {@code pad} would reach every three-to-five character term. Short tokens are therefore
    * matched exactly, and only longer ones, where two edits are a small fraction of the token, get
    * the full allowance.
    *
