@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SKOS tutorial — Cortex</title>
+  <meta name="description" content="Build a Cortex knowledge graph over SKOS: use the standard vocabulary as your ontology, write shapes and rules for a thesaurus, and ingest a controlled vocabulary end to end.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🧠</text></svg>">
+  <link rel="stylesheet" href="css/cortex.css">
+</head>
+<body>
+  <header class="site-nav">
+    <div class="nav-inner">
+      <a class="navbar-brand" href="index.html">CORTEX</a>
+      <button class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+      <ul class="nav-links">
+        <li><a href="architecture.html">Architecture</a></li>
+        <li><a href="getting-started.html">Getting started</a></li>
+        <li><a href="skos-tutorial.html" class="active">SKOS tutorial</a></li>
+        <li><a href="mcp.html">MCP server</a></li>
+        <li><a href="configuration.html">Configuration</a></li>
+        <li><a class="ext" href="api/index.html">API</a></li>
+        <li><a class="ext" href="https://github.com/chaturai/cortex">GitHub</a></li>
+      </ul>
+    </div>
+  </header>
+
+  <main class="doc">
+    <div class="container">
+      <h1>Tutorial: a controlled vocabulary with SKOS</h1>
+      <p class="lead">A complete, working Cortex setup built on a <em>standard</em> ontology. You write
+        no OWL at all — SKOS is the vocabulary — so this is the shortest path from an empty project to
+        a real graph an agent can read and write.</p>
+
+      <div class="callout">
+        <strong>Prerequisites.</strong> Finish <a href="getting-started.html">Getting started</a>
+        first — it covers adding the starter and running the app. This page replaces only step 2, the
+        ontology, shapes, and rules.
+      </div>
+
+      <h2 id="why">Why SKOS makes a good first graph</h2>
+      <p><a href="https://www.w3.org/TR/skos-reference/">SKOS</a> (Simple Knowledge Organization
+        System) is the W3C vocabulary for thesauri, taxonomies, and controlled vocabularies. It models
+        <em>concepts</em> and how they relate — broader, narrower, related — rather than any particular
+        domain, which is exactly what you want when the thing you are building is a memory of topics,
+        tags, product categories, or subject headings.</p>
+      <p>It suits Cortex specifically because it is <strong>small</strong> (a handful of classes and
+        properties, so linting has a tight vocabulary to check against) and because its own
+        <code>rdfs:subPropertyOf</code> declarations do a lot of the inference work for you — as the
+        rules below show.</p>
+      <div class="callout note">
+        <strong>The example app already ships it.</strong>
+        <code>cortex-spring-boot-starter-example/src/main/resources/skos.ttl</code> is the SKOS Core
+        vocabulary, merged alongside the example's own ontology. Copy that file into your own
+        <code>src/main/resources/</code>, or download it from
+        <a href="https://www.w3.org/2009/08/skos-reference/skos.rdf">w3.org</a> and convert it to
+        Turtle.
+      </div>
+
+      <ol class="steps">
+        <li>
+          <h3>Use SKOS as the ontology</h3>
+          <p>Point <code>cortex.ontologies</code> at the SKOS file. There is nothing to author — the
+            classes (<code>skos:Concept</code>, <code>skos:ConceptScheme</code>) and properties
+            (<code>skos:prefLabel</code>, <code>skos:broader</code>, …) come from the standard.</p>
+          <p>Remember what the ontology <em>does</em> in Cortex: linting is a closed-world check, so
+            after this step an agent can use SKOS terms and nothing else. A made-up
+            <code>ex:invented</code> predicate is rejected before it ever reaches SHACL.</p>
+        </li>
+
+        <li id="shapes">
+          <h3>Write shapes for your vocabulary</h3>
+          <p>SKOS says what the terms <em>mean</em>; it does not say which of them <em>your</em> data
+            must carry. That is the shapes file — and it is where you pin your own IRI scheme, which
+            SKOS has no opinion about.</p>
+          <div class="code-block">
+            <span class="code-lang">ontology.shapes</span>
+            <pre><code>@prefix rdf:  &lt;http://www.w3.org/1999/02/22-rdf-syntax-ns#&gt; .
+@prefix sh:   &lt;http://www.w3.org/ns/shacl#&gt; .
+@prefix skos: &lt;http://www.w3.org/2004/02/skos/core#&gt; .
+
+@prefix s: &lt;https://example.org/shapes#&gt; .
+
+s:VocabularyShape a sh:NodeShape ;
+    sh:targetSubjectsOf rdf:type ;
+    sh:nodeKind sh:IRI ;
+    sh:pattern "^https://example.org/vocab/[^/?#]+$" ;
+    sh:message "vocabulary terms must be https://example.org/vocab/{name} IRIs" ;
+    sh:property [
+        sh:path rdf:type ;
+        sh:minCount 1 ;
+        sh:in ( skos:Concept skos:ConceptScheme ) ;
+        sh:message "only skos:Concept and skos:ConceptScheme may be asserted" ;
+    ] ;
+    sh:property [
+        sh:path skos:prefLabel ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:Literal ;
+        sh:message "every term needs exactly one skos:prefLabel" ;
+    ] .
+
+s:ConceptShape a sh:NodeShape ;
+    sh:targetClass skos:Concept ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 1 ;
+        sh:nodeKind sh:Literal ;
+        sh:message "every concept needs a skos:definition" ;
+    ] ;
+    sh:property [
+        sh:path skos:broader ;
+        sh:nodeKind sh:IRI ;
+        sh:message "skos:broader must point at another concept" ;
+    ] .</code></pre>
+          </div>
+          <p>Three decisions worth calling out:</p>
+          <ul>
+            <li><strong>One <code>skos:prefLabel</code>, no more.</strong> This is SKOS's own integrity
+              condition, and it is the constraint that stops an agent quietly introducing a second name
+              for a concept that already has one.</li>
+            <li><strong><code>sh:in</code> on <code>rdf:type</code>.</strong> SKOS declares classes you
+              probably do not want asserted by hand — restrict the assertable set explicitly rather
+              than inheriting whatever the standard happens to define.</li>
+            <li><strong>An IRI pattern.</strong> Cortex reserves <code>cortex://</code>; everything else
+              is yours. Pinning a pattern is what keeps an agent from inventing a parallel namespace
+              for the same concepts.</li>
+          </ul>
+        </li>
+
+        <li id="rules">
+          <h3>Add rules — SKOS does most of the work</h3>
+          <div class="code-block">
+            <span class="code-lang">ontology.rules</span>
+            <pre><code>@prefix rdf:  &lt;http://www.w3.org/1999/02/22-rdf-syntax-ns#&gt; .
+@prefix rdfs: &lt;http://www.w3.org/2000/01/rdf-schema#&gt; .
+@prefix skos: &lt;http://www.w3.org/2004/02/skos/core#&gt; .
+
+[subClass:    (?x rdf:type ?c1) (?c1 rdfs:subClassOf ?c2) -&gt; (?x rdf:type ?c2)]
+[subProperty: (?x ?p1 ?y) (?p1 rdfs:subPropertyOf ?p2) -&gt; (?x ?p2 ?y)]
+
+[narrower: (?a skos:broader ?b) -&gt; (?b skos:narrower ?a)]
+
+[broaderTransitive:
+  (?a skos:broader ?b) (?b skos:broaderTransitive ?c) -&gt; (?a skos:broaderTransitive ?c)]
+
+[hasTopConcept: (?c skos:topConceptOf ?s) -&gt; (?s skos:hasTopConcept ?c)]
+
+[definitionComment: (?c skos:definition ?d) -&gt; (?c rdfs:comment ?d)]</code></pre>
+          </div>
+          <p>The generic <code>subProperty</code> rule is the one that pays off, because SKOS is full of
+            <code>rdfs:subPropertyOf</code> declarations. Three of them matter here:</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Declared in SKOS</th><th>What you get for free</th></tr></thead>
+              <tbody>
+                <tr><td><code>skos:prefLabel</code>, <code>skos:altLabel</code> ⊑ <code>rdfs:label</code></td><td>Every concept becomes <strong>searchable</strong> and renders with a name in the web UI — Cortex indexes <code>rdfs:label</code>, and the inferred one counts.</td></tr>
+                <tr><td><code>skos:broader</code> ⊑ <code>skos:broaderTransitive</code></td><td>The <code>broaderTransitive</code> rule above only has to chain; the base case is already entailed.</td></tr>
+                <tr><td><code>skos:topConceptOf</code> ⊑ <code>skos:inScheme</code></td><td>Declaring a top concept puts it in the scheme without a second statement.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout note">
+            <strong>Why <code>definitionComment</code> is worth having.</strong>
+            <code>skos:definition</code> is a sub-property of <code>skos:note</code>, <em>not</em> of
+            <code>rdfs:comment</code> — so without that one rule your definitions never reach the
+            comment field the Describe view renders and the search index covers. It is a one-line rule
+            that makes a SKOS graph feel native in the Cortex UI.
+          </div>
+        </li>
+
+        <li>
+          <h3>Configure it</h3>
+          <div class="code-block">
+            <span class="code-lang">application.yaml</span>
+            <pre><code>cortex:
+  persistent: true
+  ontologies:
+    - classpath:skos.ttl
+  shapes:
+    - classpath:ontology.shapes
+  rules:
+    - classpath:ontology.rules</code></pre>
+          </div>
+          <p>Each property takes a list, merged in order — so if you later add domain classes of your
+            own, append <code>classpath:ontology.ttl</code> after <code>skos.ttl</code> rather than
+            editing the standard vocabulary. That is exactly what the shipped example does.</p>
+        </li>
+
+        <li id="ingest">
+          <h3>Ingest a vocabulary</h3>
+          <p>Ask an agent over <a href="mcp.html">MCP</a> to add some concepts, or POST this to
+            <code>/import</code>. Either way it is linted, SHACL-validated, and staged on a branch for
+            review — nothing below is queryable until you approve it at <code>/branches</code>.</p>
+          <div class="code-block">
+            <span class="code-lang">Turtle</span>
+            <pre><code>@prefix skos: &lt;http://www.w3.org/2004/02/skos/core#&gt; .
+@prefix : &lt;https://example.org/vocab/&gt; .
+
+:topics a skos:ConceptScheme ;
+    skos:prefLabel "Documentation topics" .
+
+:knowledge-graph a skos:Concept ;
+    skos:prefLabel "Knowledge graph" ;
+    skos:definition "A graph-structured store of facts about entities and their relationships." ;
+    skos:topConceptOf :topics .
+
+:ontology a skos:Concept ;
+    skos:prefLabel "Ontology" ;
+    skos:definition "A formal vocabulary of classes and properties for a domain." ;
+    skos:broader :knowledge-graph .
+
+:shacl a skos:Concept ;
+    skos:prefLabel "SHACL" ;
+    skos:altLabel "Shapes Constraint Language" ;
+    skos:definition "A language for validating the structure of RDF data." ;
+    skos:broader :ontology ;
+    skos:related :ontology .</code></pre>
+          </div>
+        </li>
+      </ol>
+
+      <h2 id="inferred">What you get after approving</h2>
+      <p>Four subjects were asserted. Once the branch is merged, the inference closure holds a good deal
+        more — all of it queryable through <em>Query</em>, <em>Describe</em>, and the web UI:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Inferred statement</th><th>From</th></tr></thead>
+          <tbody>
+            <tr><td><code>:shacl skos:broaderTransitive :knowledge-graph</code></td><td>The <code>broaderTransitive</code> rule chaining <code>:shacl → :ontology → :knowledge-graph</code>.</td></tr>
+            <tr><td><code>:knowledge-graph skos:narrower :ontology</code></td><td>The <code>narrower</code> rule inverting <code>skos:broader</code>.</td></tr>
+            <tr><td><code>:topics skos:hasTopConcept :knowledge-graph</code></td><td>The <code>hasTopConcept</code> rule inverting <code>skos:topConceptOf</code>.</td></tr>
+            <tr><td><code>:knowledge-graph skos:inScheme :topics</code></td><td><code>skos:topConceptOf</code> ⊑ <code>skos:inScheme</code>, via the generic sub-property rule.</td></tr>
+            <tr><td><code>:shacl rdfs:label "SHACL"</code>, <code>"Shapes Constraint Language"</code></td><td><code>skos:prefLabel</code> and <code>skos:altLabel</code> ⊑ <code>rdfs:label</code>.</td></tr>
+            <tr><td><code>:shacl rdfs:comment "A language for validating…"</code></td><td>The <code>definitionComment</code> rule.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Walk the hierarchy with a SPARQL <code>SELECT</code> — through the <em>Query</em> MCP tool, or
+        <code>Cortex.query(String)</code>:</p>
+      <div class="code-block">
+        <span class="code-lang">SPARQL</span>
+        <pre><code>PREFIX skos: &lt;http://www.w3.org/2004/02/skos/core#&gt;
+SELECT ?ancestor WHERE {
+  &lt;https://example.org/vocab/shacl&gt; skos:broaderTransitive ?ancestor .
+}</code></pre>
+      </div>
+      <p>That returns both <code>:ontology</code> and <code>:knowledge-graph</code>, though only the
+        first was asserted.</p>
+      <p>Search works on the inferred labels too: <strong>Shapes Constraint</strong> finds
+        <code>:shacl</code> through its <code>skos:altLabel</code>, and <strong>validating</strong>
+        finds it through the definition that became an <code>rdfs:comment</code>. Search is fuzzy, so
+        near-misses still land — see <a href="architecture.html#ranking">how search ranks</a>.</p>
+
+      <h2 id="rejections">What gets rejected</h2>
+      <p>The point of the shapes is that these fail <em>before</em> a human is asked to review anything.
+        Each of these is refused at ingest:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Attempted assertion</th><th>Rejected by</th></tr></thead>
+          <tbody>
+            <tr><td>A concept at <code>https://elsewhere.example/thing</code></td><td><code>sh:pattern</code> — outside your vocabulary namespace.</td></tr>
+            <tr><td>A <code>skos:Concept</code> with no <code>skos:definition</code></td><td><code>s:ConceptShape</code>'s <code>sh:minCount 1</code>.</td></tr>
+            <tr><td>A concept with two <code>skos:prefLabel</code>s</td><td><code>sh:maxCount 1</code> — SKOS's own integrity condition.</td></tr>
+            <tr><td>A made-up predicate such as <code>ex:invented</code></td><td><strong>Linting</strong>, not SHACL — the term is not declared in SKOS.</td></tr>
+            <tr><td>A resource typed <code>skos:Collection</code></td><td><code>sh:in</code> — SKOS declares it, your shapes do not admit it.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout warn">
+        <strong>Lint and SHACL are different checks.</strong> Linting is the closed-world vocabulary
+        check against the ontology — is this term defined at all? SHACL is the structural check against
+        your shapes — is this data shaped the way I require? An agent that calls <em>Lint</em> first
+        gets the vocabulary error immediately, without staging anything.
+      </div>
+
+      <h2 id="next">Where to go next</h2>
+      <ul>
+        <li><strong>Extend the vocabulary.</strong> Add <code>classpath:ontology.ttl</code> after
+          <code>skos.ttl</code> with domain classes of your own, and let concepts carry properties SKOS
+          does not model.</li>
+        <li><strong>Point an agent at it.</strong> The <a href="mcp.html">MCP server guide</a> covers
+          client setup; the agent reads <code>cortex://ontology</code> and grounds itself in SKOS
+          automatically.</li>
+        <li><strong>Make it durable.</strong> <a href="configuration.html#backups">Scheduled backups</a>
+          and <a href="configuration.html#restore">restore on startup</a> let a replaceable instance
+          come up fully seeded.</li>
+      </ul>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container container-wide footer-inner">
+      <div>Cortex — ontology-grounded knowledge graph memory. Apache-2.0.</div>
+      <nav class="footer-links">
+        <a href="architecture.html">Architecture</a>
+        <a href="getting-started.html">Getting started</a>
+        <a href="skos-tutorial.html">SKOS tutorial</a>
+        <a href="mcp.html">MCP server</a>
+        <a href="configuration.html">Configuration</a>
+        <a href="api/index.html">API</a>
+        <a href="https://github.com/chaturai/cortex">GitHub</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script src="js/site.js"></script>
+</body>
+</html>

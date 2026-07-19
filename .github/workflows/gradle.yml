@@ -26,14 +26,13 @@ jobs:
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@af1da67850ed9a4cedd57bfd976089dd991e2582 # v4.0.0
 
+    # `build` enforces coverage on its own: `check` depends on jacocoTestCoverageVerification, which
+    # fails below LINE 85%. The aggregated report is still generated even though nothing uploads it
+    # now that Codecov is gone -- it is the only view of cortex-api's (transitive) coverage, and the
+    # aggregation has been silently broken before, so running it here keeps that a build failure
+    # rather than a surprise the next time someone asks for the report locally.
     - name: Build with Gradle Wrapper
       run: ./gradlew build :cortex-spring-boot-autoconfigure:testCodeCoverageReport
-
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v5
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        files: cortex-spring-boot-autoconfigure/build/reports/jacoco/testCodeCoverageReport/testCodeCoverageReport.xml
 
     # NOTE: The Gradle Wrapper is the default and recommended way to run Gradle (https://docs.gradle.org/current/userguide/gradle_wrapper.html).
     # If your project does not have the Gradle Wrapper configured, you can use the following configuration to run Gradle with a specified version.

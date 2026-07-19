@@ -1,0 +1,15 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+
+[subClass:    (?x rdf:type ?c1) (?c1 rdfs:subClassOf ?c2) -> (?x rdf:type ?c2)]
+[subProperty: (?x ?p1 ?y) (?p1 rdfs:subPropertyOf ?p2) -> (?x ?p2 ?y)]
+
+[narrower: (?a skos:broader ?b) -> (?b skos:narrower ?a)]
+
+[broaderTransitive:
+  (?a skos:broader ?b) (?b skos:broaderTransitive ?c) -> (?a skos:broaderTransitive ?c)]
+
+[hasTopConcept: (?c skos:topConceptOf ?s) -> (?s skos:hasTopConcept ?c)]
+
+[definitionComment: (?c skos:definition ?d) -> (?c rdfs:comment ?d)]

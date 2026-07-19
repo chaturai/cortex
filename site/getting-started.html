@@ -16,6 +16,7 @@
       <ul class="nav-links">
         <li><a href="architecture.html">Architecture</a></li>
         <li><a href="getting-started.html" class="active">Getting started</a></li>
+        <li><a href="skos-tutorial.html">SKOS tutorial</a></li>
         <li><a href="mcp.html">MCP server</a></li>
         <li><a href="configuration.html">Configuration</a></li>
         <li><a class="ext" href="api/index.html">API</a></li>
@@ -62,6 +63,11 @@
             <li><code>src/main/resources/ontology.shapes</code> — SHACL shapes ingested data must satisfy.</li>
             <li><code>src/main/resources/ontology.rules</code> — Jena rules for inference.</li>
           </ul>
+          <div class="callout">
+            <strong>Want a shortcut?</strong> You don't have to author an ontology at all — a published
+            standard works as-is. The <a href="skos-tutorial.html">SKOS tutorial</a> builds a complete
+            controlled vocabulary on the W3C's SKOS Core, with shapes and rules you can copy verbatim.
+          </div>
           <p>A snippet of the example ontology (namespace <code>example://ontology#</code>):</p>
           <div class="code-block">
             <span class="code-lang">ontology.ttl</span>
@@ -191,6 +197,7 @@ cortex:
       <nav class="footer-links">
         <a href="architecture.html">Architecture</a>
         <a href="getting-started.html">Getting started</a>
+        <a href="skos-tutorial.html">SKOS tutorial</a>
         <a href="mcp.html">MCP server</a>
         <a href="configuration.html">Configuration</a>
         <a href="api/index.html">API</a>
