@@ -21,6 +21,7 @@ import ai.chatur.cortex.core.query.QueryService;
 import ai.chatur.cortex.core.stats.StatsService;
 import ai.chatur.cortex.core.store.AssertionStore;
 import ai.chatur.cortex.core.store.TextIndexFactory;
+import ai.chatur.cortex.core.usage.UsageService;
 import ai.chatur.cortex.spring.inference.InferenceInitializer;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -42,7 +43,8 @@ import org.springframework.core.io.Resource;
 
 /**
  * Core auto-configuration for Cortex: the ontology, SHACL shapes, rule reasoner, the two Jena
- * {@link Dataset}s, the eleven core services, and the composed {@link Cortex} bean.
+ * {@link Dataset}s, the eleven core services composed into {@link Cortex}, the {@link UsageService}
+ * that weights search ranking, and the composed {@link Cortex} bean.
  *
  * <p>Every bean here is {@link ConditionalOnMissingBean @ConditionalOnMissingBean}, so a consumer
  * may substitute their own {@link OntModel}, {@link Shapes}, {@link Dataset}, {@link
@@ -284,11 +286,29 @@ public class CortexAutoConfiguration {
   }
 
   /**
+   * Creates the service recording how often each resource is viewed.
+   *
+   * <p>{@code destroyMethod} flushes the views buffered since the last batch, so an orderly
+   * shutdown does not discard them.
+   *
+   * @param assertions the assertions dataset, whose usage graph holds the counts
+   * @param properties the Cortex configuration properties, supplying the view half-life
+   * @return the usage service
+   */
+  @Bean(destroyMethod = "flush")
+  @ConditionalOnMissingBean
+  UsageService usageService(
+      @Qualifier("assertions") Dataset assertions, CortexProperties properties) {
+    return new UsageService(assertions, properties.search().viewHalfLife());
+  }
+
+  /**
    * Creates the service answering SPARQL queries and full-text search.
    *
    * @param inferences the indexed inference dataset
    * @param assertions the assertions dataset, used to look up provenance
    * @param ontModel the ontology model, used to abbreviate terms for display
+   * @param usageService view counts, which weight the ranking of search results
    * @return the query service
    */
   @Bean
@@ -296,8 +316,9 @@ public class CortexAutoConfiguration {
   QueryService queryService(
       @Qualifier("inferences") Dataset inferences,
       @Qualifier("assertions") Dataset assertions,
-      OntModel ontModel) {
-    return new QueryService(inferences, assertions, ontModel);
+      OntModel ontModel,
+      UsageService usageService) {
+    return new QueryService(inferences, assertions, ontModel, usageService);
   }
 
   /**

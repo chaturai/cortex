@@ -20,6 +20,7 @@ import org.springframework.core.io.Resource;
  * @param shapes the SHACL shapes ingested assertions are validated against, in Turtle syntax,
  *     merged in order
  * @param rules the Jena rules used for inference, concatenated in order
+ * @param search the full-text search settings
  * @param web the web UI settings
  * @param mcp the MCP server settings
  * @param s3 the S3 client settings
@@ -33,11 +34,28 @@ public record CortexProperties(
     @DefaultValue("classpath:ontology.ttl") List<Resource> ontologies,
     @DefaultValue("classpath:ontology.shapes") List<Resource> shapes,
     @DefaultValue("classpath:ontology.rules") List<Resource> rules,
+    @DefaultValue Search search,
     @DefaultValue Web web,
     @DefaultValue Mcp mcp,
     @DefaultValue S3 s3,
     @DefaultValue Backup backup,
     @DefaultValue Restore restore) {
+
+  /**
+   * Settings for full-text search ranking.
+   *
+   * <p>Search results are ranked by textual relevance, then weighted by how often each resource has
+   * been deliberately opened, so a frequently consulted resource outranks an equally relevant one
+   * nobody reads. That weight is bounded, so popularity reorders comparable results rather than
+   * overriding relevance.
+   *
+   * @param viewHalfLife how long it takes a view's contribution to that weight to halve, so recent
+   *     interest counts for more than interest that has since faded. Set to {@code 0} to disable
+   *     decay entirely and weight by the raw lifetime view count instead — in which case a resource
+   *     popular long ago outranks a newer one indefinitely. Changing this takes effect immediately;
+   *     no stored history is rewritten.
+   */
+  public record Search(@DefaultValue("30d") Duration viewHalfLife) {}
 
   /**
    * Settings for the web UI auto-configured by {@link

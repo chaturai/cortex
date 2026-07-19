@@ -112,6 +112,33 @@
         Query, Ask, Describe, and Search all read the inference dataset, so results always include
         entailed statements.</p>
 
+      <h2 id="ranking">How search ranks</h2>
+      <p>Query text is tokenised by the <em>same analyser that indexed the literals</em>. That equality is
+        the whole game: Lucene resolves fuzzy terms without tokenising, so a query split by hand on
+        whitespace is looked up whole against an index the tokeniser already split differently, and
+        <code>note-pad</code> silently matches nothing while <code>note pad</code>
+        works. Labels and comments are separate fields, searched as separate branches so a name outranks
+        a description, and every term is required, so adding a word narrows rather than widens.</p>
+      <p>Textual relevance is then weighted by <strong>how often each resource is deliberately opened</strong> —
+        opening it, never merely appearing in a result list, which would boost whatever already ranked
+        highly and is self-fulfilling. Counts live in <code>cortex://usage</code>, a reserved named graph
+        beside provenance, so nothing here reaches the approved assertions. Views buffer in memory and
+        flush in batches: TDB2 admits a single writer, so a write per view would serialise reads against
+        ingestion.</p>
+      <p>The weight <em>saturates and is bounded at 2×</em>, and each view's contribution halves every
+        <a href="configuration.html#core"><code>cortex.search.viewHalfLife</code></a>. Both limits exist for
+        the same reason: popularity that compounds without bound becomes a rich-get-richer loop, since
+        boosted results are seen more and therefore opened more, and nothing new can break in. Bounding
+        the weight keeps popularity a tie-breaker between comparable results rather than a substitute for
+        relevance; decaying it means the ranking follows what people consult <em>now</em> rather than
+        whatever was popular once.</p>
+      <div class="callout">
+        <strong>It is a ranking prior, not associative learning.</strong> Each resource carries one
+        decayed score of its own. Nothing strengthens a <em>connection between</em> two resources, so
+        despite the surface resemblance this is not Hebbian — there is no co-activation and no edge whose
+        weight changes. Storing a co-view score per <em>pair</em> would be.
+      </div>
+
       <h2 id="modules">Modules &amp; delivery mechanisms</h2>
       <p>The auto-configuration is grouped by how the graph is <em>delivered</em> — to the process, to
         humans, to agents, to durable storage, and seeded back from it — not by domain. That grouping is

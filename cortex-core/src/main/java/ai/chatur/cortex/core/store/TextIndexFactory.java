@@ -43,8 +43,8 @@ public final class TextIndexFactory {
    * same analyzer. Lucene's classic query parser resolves fuzzy and other multi-term queries
    * through {@link Analyzer#normalize}, which lower-cases but does <em>not</em> tokenize, so a
    * query term assembled by hand never matches an index term that the tokenizer split differently —
-   * {@code communication-api} against an index holding {@code communication} and {@code api}, for
-   * instance. Sharing one instance is what keeps query analysis and index analysis from drifting.
+   * {@code note-pad} against an index holding {@code note} and {@code pad}, for instance. Sharing
+   * one instance is what keeps query analysis and index analysis from drifting.
    *
    * @return the shared analyzer used for both indexing and querying
    */

@@ -41,6 +41,7 @@
             <tr><td><code>cortex.ontologies</code></td><td><code>classpath:ontology.ttl</code></td><td>The ontologies the graph is built on (Turtle), merged in order.</td></tr>
             <tr><td><code>cortex.shapes</code></td><td><code>classpath:ontology.shapes</code></td><td>The SHACL shapes ingested assertions are validated against, merged in order.</td></tr>
             <tr><td><code>cortex.rules</code></td><td><code>classpath:ontology.rules</code></td><td>The Jena rules used for inference, concatenated in order.</td></tr>
+            <tr><td><code>cortex.search.viewHalfLife</code></td><td><code>30d</code></td><td>How long it takes a view's contribution to search ranking to halve. Results are ranked by textual relevance, then weighted by how often each resource has been deliberately opened. Set <code>0</code> to disable decay and weight by the raw lifetime count instead. The weight is bounded either way, so popularity reorders comparable results rather than overriding relevance.</td></tr>
             <tr><td><code>cortex.web.enabled</code></td><td><code>true</code></td><td>Register the web UI controllers. Set <code>false</code> for the graph without the UI.</td></tr>
             <tr><td><code>cortex.mcp.enabled</code></td><td><code>true</code></td><td>Register the MCP tools and resources. Set <code>false</code> for the graph without an MCP server.</td></tr>
           </tbody>
