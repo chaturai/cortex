@@ -169,11 +169,15 @@ public record CortexProperties(
    *     startup, so a restart loop does not upload a backup per restart
    * @param keyPrefix prepended verbatim to the backup's file name to form the S3 object key;
    *     include a trailing {@code /} to group the objects under a folder
+   * @param onShutdown whether a final backup is taken while the context closes, blocking shutdown
+   *     until it has uploaded; on by default, since the alternative is discarding up to a full
+   *     {@code interval} of approved work on every deliberate restart
    */
   public record Backup(
       @DefaultValue("false") boolean enabled,
       @DefaultValue("24h") Duration interval,
-      @DefaultValue("cortex/") String keyPrefix) {}
+      @DefaultValue("cortex/") String keyPrefix,
+      @DefaultValue("true") boolean onShutdown) {}
 
   /**
    * Settings for the restore-on-startup step auto-configured by {@link

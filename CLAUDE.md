@@ -110,6 +110,27 @@ a consumer who explicitly asked for backups — the failure it produces is an ap
 and never backs anything up. `BackupServiceTests` pins the `TDBException`;
 `CortexBackupAutoConfigurationTests` pins each fail-fast.
 
+**The shutdown backup's lifecycle phase is load-bearing.** `BackupShutdownLifecycle` takes one last
+backup as the context closes and blocks until it uploads — otherwise a restart discards up to a full
+`cortex.backup.interval` (24h) of approvals. `PHASE` is `Integer.MAX_VALUE - 4096`, below every phase
+Boot stops before it: `SchedulerFactoryBean` at `Integer.MAX_VALUE`, graceful shutdown at
+`- 1024`, the web server at `- 2048`. Raise it and the snapshot races approvals still arriving over
+HTTP — silently losing the writes it exists to preserve. It also resolves the `Scheduler` through an
+`ObjectProvider` **lazily, at stop time**: injecting it outright makes the bean uncreatable without
+`QuartzAutoConfiguration` (which `CortexBackupAutoConfigurationTests`' runner does not register) and
+forces the `SchedulerFactoryBean` to initialize while `BackupJobConfiguration` is still defining the
+`JobDetail` beans it collects.
+
+**The shutdown backup's wait is unbounded, and that requires `stop()` to stay synchronous.** Spring's
+`DefaultLifecycleProcessor` calls `SmartLifecycle.stop(Runnable)`, whose default implementation runs
+`stop()` on the calling thread and then the callback — so the latch it awaits is already counted down
+and `spring.lifecycle.timeout-per-shutdown-phase` never applies. Moving the upload to an executor and
+counting the latch down on completion looks equivalent and silently caps it at that timeout (30s),
+killing a large store's backup mid-upload on every restart. Failures, by contrast, propagate out of
+`stop()`, where the processor logs them and continues closing: a bad bucket must not make the app
+impossible to restart. `CortexBackupAutoConfigurationTests.shouldActuallyBackUpWhenTheContextCloses`
+closes a real context and pins that a real TDB2 snapshot is uploaded.
+
 **`CortexBackupAutoConfiguration` must not name a Quartz or AWS type in a method signature.** They're
 `compileOnly`, so a missing one would surface as a `NoClassDefFoundError` while Spring introspects the
 class, pre-empting the constructor's explanation. That's why `BackupJobConfiguration` is a separate

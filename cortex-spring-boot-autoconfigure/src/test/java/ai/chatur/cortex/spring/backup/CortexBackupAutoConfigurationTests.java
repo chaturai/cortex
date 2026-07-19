@@ -1,17 +1,25 @@
 package ai.chatur.cortex.spring.backup;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.description;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import ai.chatur.cortex.core.store.BackupService;
 import ai.chatur.cortex.spring.CortexAutoConfiguration;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentCaptor;
 import org.quartz.JobDetail;
 import org.quartz.Trigger;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 /**
  * Tests for {@link CortexBackupAutoConfiguration}, driven by {@link ApplicationContextRunner}
@@ -89,6 +97,86 @@ class CortexBackupAutoConfigurationTests {
               assertThat(context).hasSingleBean(S3Client.class);
               assertThat(context).hasBean("cortexBackupJobDetail");
               assertThat(context).hasBean("cortexBackupTrigger");
+              assertThat(context).hasBean("cortexBackupShutdownLifecycle");
+            });
+  }
+
+  @Test
+  void shouldTakeAFinalBackupOnShutdownByDefault() {
+    // Backups are scheduled at cortex.backup.interval, 24h by default, so without this a deliberate
+    // restart discards up to a day of approvals. Enabling backups is enough to opt in.
+    enabledRunner()
+        .run(
+            context -> {
+              assertThat(context).hasNotFailed();
+              assertThat(context).hasSingleBean(BackupShutdownLifecycle.class);
+            });
+  }
+
+  @Test
+  void shouldNotTakeAFinalBackupOnShutdownWhenDisabled() {
+    // The one part of the feature that makes shutdown block on the network, so it is switchable
+    // without giving up scheduled backups.
+    enabledRunner()
+        .withPropertyValues("cortex.backup.on-shutdown=false")
+        .run(
+            context -> {
+              assertThat(context).hasNotFailed();
+              assertThat(context).doesNotHaveBean(BackupShutdownLifecycle.class);
+              assertThat(context)
+                  .as("disabling the shutdown backup leaves the scheduled one alone")
+                  .hasBean("cortexBackupTrigger");
+            });
+  }
+
+  @Test
+  void shouldActuallyBackUpWhenTheContextCloses() {
+    // The one case here that closes a real context rather than inspecting bean definitions: it
+    // proves Spring invokes the lifecycle on shutdown at all, which no amount of wiring assertions
+    // can. The snapshot is a real TDB2 backup of the temp store; only the upload is mocked.
+    S3Client s3Client = mock(S3Client.class);
+
+    enabledRunner()
+        .withBean("cortexS3Client", S3Client.class, () -> s3Client)
+        .run(
+            context -> {
+              assertThat(context).hasNotFailed();
+              verify(s3Client, never())
+                  .putObject(any(PutObjectRequest.class), any(RequestBody.class));
+            });
+
+    // ApplicationContextRunner closes the context once the callback returns.
+    ArgumentCaptor<PutObjectRequest> request = ArgumentCaptor.forClass(PutObjectRequest.class);
+    verify(s3Client, description("closing the context must upload a final backup"))
+        .putObject(request.capture(), any(RequestBody.class));
+    assertThat(request.getValue().bucket()).isEqualTo("cortex-backups");
+    assertThat(request.getValue().key())
+        .as("the shutdown backup is an ordinary backup under the same prefix, so restore finds it")
+        .startsWith("cortex/backup_");
+  }
+
+  @Test
+  void shouldNotBackUpOnCloseWhenTheShutdownBackupIsDisabled() {
+    S3Client s3Client = mock(S3Client.class);
+
+    enabledRunner()
+        .withPropertyValues("cortex.backup.on-shutdown=false")
+        .withBean("cortexS3Client", S3Client.class, () -> s3Client)
+        .run(context -> assertThat(context).hasNotFailed());
+
+    verify(s3Client, never()).putObject(any(PutObjectRequest.class), any(RequestBody.class));
+  }
+
+  @Test
+  void shouldStopTheShutdownLifecycleAfterTheWebServerAndScheduler() {
+    // Lifecycle phases stop in descending order. At or above Boot's web server phase the final
+    // snapshot would race approvals still arriving over HTTP -- the writes it exists to preserve.
+    enabledRunner()
+        .run(
+            context -> {
+              assertThat(context).hasNotFailed();
+              assertThat(context.getBean(BackupShutdownLifecycle.class).getPhase())
+                  .isLessThan(Integer.MAX_VALUE - 2048);
             });
   }
 

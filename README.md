@@ -67,6 +67,7 @@ All properties are bound under the `cortex` prefix. `ontologies`, `shapes`, and 
 | `cortex.backup.enabled` | `false` | Whether the scheduled backup job is registered. See [Scheduled backups](#scheduled-backups) — enabling it requires `cortex.persistent=true`, an enabled S3 client, and two extra dependencies. |
 | `cortex.backup.interval` | `24h` | How often a backup is taken. The first runs one interval **after** startup, not at startup, so restarts do not each leave a backup behind. |
 | `cortex.backup.keyPrefix` | `cortex/` | Prepended verbatim to the backup's file name to form the S3 object key. Include a trailing `/` to group the objects under a folder. |
+| `cortex.backup.onShutdown` | `true` | Whether a final backup is taken as the application shuts down, blocking shutdown until it has uploaded. Only applies when `cortex.backup.enabled=true`. |
 | `cortex.restore.enabled` | `false` | Whether the latest backup under `cortex.restore.keyPrefix` is downloaded and loaded into the store at startup. See [Restore on startup](#restore-on-startup) — enabling it requires `cortex.persistent=true`, an enabled S3 client, and the same two extra dependencies as backups. |
 | `cortex.restore.keyPrefix` | `cortex/` | The S3 key prefix to look for backups under. Defaults to the same value as `cortex.backup.keyPrefix`; set it to match if you customize that. |
 | `cortex.s3.enabled` | `false` | Whether the `S3Client` bean is registered. Independent of `cortex.backup.enabled` and `cortex.restore.enabled`, though both require it. |
@@ -123,6 +124,14 @@ cortex:
 ```
 
 > **Backups require `cortex.persistent=true`.** A TDB2 backup is an admin operation on an on-disk store; the in-memory store used by default has no location to write a backup beside. Enabling backups without persistence **fails at startup** rather than booting an application that reports healthy and never backs anything up. The same is true of a missing bucket, missing static credentials, a non-positive interval, and the dependencies above.
+
+### Backup on shutdown
+
+Backups are scheduled, so a restart discards every approval made since the last one — up to a full `cortex.backup.interval`, 24 hours by default. Cortex therefore takes one final backup as the context closes and **blocks shutdown until it has uploaded**. It is on by default whenever backups are enabled; set `cortex.backup.onShutdown=false` to turn it off without giving up scheduled backups.
+
+The final backup runs after the web server has stopped accepting requests and after the scheduler has quiesced, so it snapshots a store nothing is still writing to — including waiting out a scheduled backup that happens to be in flight. It is an ordinary backup under the same key prefix, so a restore picks it up as the most recent object with no extra configuration.
+
+> **The wait is deliberately unbounded.** A large store on a slow link takes as long as it takes, and a bounded wait would kill the upload partway through on exactly the stores that most need it. A backup that *fails* — bad credentials, a missing bucket — is logged and shutdown continues, so a misconfigured bucket can never make the application impossible to restart; only a genuinely slow upload holds shutdown open. If your orchestrator sends `SIGKILL` after a grace period, size that grace period against how long a backup of your store actually takes.
 
 Backup files accumulate under `<cortex.assertionsLocation>/Backups/` and are never deleted: the upload is a copy, not a move, so a bucket misconfiguration can never destroy data. Pruning them is left to whatever manages that volume — or to an S3 lifecycle rule for the uploaded copies.
 

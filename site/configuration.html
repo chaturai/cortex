@@ -95,6 +95,7 @@
             <tr><td><code>cortex.backup.enabled</code></td><td><code>false</code></td><td>Register the scheduled backup job.</td></tr>
             <tr><td><code>cortex.backup.interval</code></td><td><code>24h</code></td><td>How often a backup is taken. The first runs one interval <em>after</em> startup, not at startup.</td></tr>
             <tr><td><code>cortex.backup.keyPrefix</code></td><td><code>cortex/</code></td><td>Prepended to the backup file name to form the S3 object key. Include a trailing <code>/</code> to group under a folder.</td></tr>
+            <tr><td><code>cortex.backup.onShutdown</code></td><td><code>true</code></td><td>Take a final backup as the application shuts down, blocking shutdown until it has uploaded. Applies only when backups are enabled.</td></tr>
           </tbody>
         </table>
       </div>
@@ -135,6 +136,27 @@ implementation("org.springframework.boot:spring-boot-starter-quartz")</code></pr
         copy, not a move, so a bucket misconfiguration can never destroy data. Pruning is left to the
         volume, or to an S3 lifecycle rule.</p>
 
+      <h3 id="backup-on-shutdown">Backup on shutdown</h3>
+      <p>Backups are <em>scheduled</em>, so a restart would otherwise discard every approval made since
+        the last one — up to a full <code>cortex.backup.interval</code>, 24 hours by default. Cortex
+        therefore takes one final backup as the application shuts down and <strong>blocks shutdown until
+        it has uploaded</strong>. It is on whenever backups are enabled; set
+        <code>cortex.backup.onShutdown=false</code> to turn it off without giving up scheduled
+        backups.</p>
+      <p>The final backup runs after the web server has stopped accepting requests and after the
+        scheduler has quiesced — including waiting out a scheduled backup that happens to be in flight —
+        so it snapshots a store nothing is still writing to. It is an ordinary backup under the same key
+        prefix, so a <a href="#restore">restore</a> picks it up as the most recent object with no extra
+        configuration.</p>
+      <div class="callout warn">
+        <strong>The wait is deliberately unbounded.</strong> A large store on a slow link takes as long
+        as it takes, and a bounded wait would kill the upload partway through on exactly the stores that
+        most need it. A backup that <em>fails</em> — bad credentials, a missing bucket — is logged and
+        shutdown continues, so a misconfiguration can never make the application impossible to restart;
+        only a genuinely slow upload holds shutdown open. If your orchestrator sends <code>SIGKILL</code>
+        after a grace period, size that period against how long a backup of your store actually takes.
+      </div>
+
       <h2 id="restore">Restore on startup</h2>
       <p>The inverse of a backup: on boot, download the most recent backup from S3 and load it into the
         store <em>before the application serves traffic</em>, so an instance whose local disk was
@@ -169,7 +191,10 @@ implementation("org.springframework.boot:spring-boot-starter-quartz")</code></pr
         <strong>A restore is destructive by design.</strong> It is a wipe-and-load that runs on every
         boot — it clears the local store and loads the latest backup over it, restoring approved
         assertions, staged branches, and provenance at full fidelity. Any local writes not yet captured
-        by a backup are lost on the next boot. An empty bucket (a first-ever deploy) is <em>not</em> an
+        by a backup are lost on the next boot — which is most of what
+        <a href="#backup-on-shutdown">backup on shutdown</a> is for, since it closes that window for
+        every clean stop, leaving only a crash or a <code>SIGKILL</code> able to lose work. An empty
+        bucket (a first-ever deploy) is <em>not</em> an
         error — it logs and starts empty; every other misconfiguration fails the context. Leave it
         <code>false</code> if S3 is not your source of truth.
       </div>
