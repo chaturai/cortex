@@ -1,0 +1,38 @@
+@prefix rdf:  <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix sh:   <http://www.w3.org/ns/shacl#> .
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+
+@prefix s: <https://example.org/shapes#> .
+
+s:VocabularyShape a sh:NodeShape ;
+    sh:targetSubjectsOf rdf:type ;
+    sh:nodeKind sh:IRI ;
+    sh:pattern "^https://example.org/vocab/[^/?#]+$" ;
+    sh:message "vocabulary terms must be https://example.org/vocab/{name} IRIs" ;
+    sh:property [
+        sh:path rdf:type ;
+        sh:minCount 1 ;
+        sh:in ( skos:Concept skos:ConceptScheme ) ;
+        sh:message "only skos:Concept and skos:ConceptScheme may be asserted" ;
+    ] ;
+    sh:property [
+        sh:path skos:prefLabel ;
+        sh:minCount 1 ;
+        sh:maxCount 1 ;
+        sh:nodeKind sh:Literal ;
+        sh:message "every term needs exactly one skos:prefLabel" ;
+    ] .
+
+s:ConceptShape a sh:NodeShape ;
+    sh:targetClass skos:Concept ;
+    sh:property [
+        sh:path skos:definition ;
+        sh:minCount 1 ;
+        sh:nodeKind sh:Literal ;
+        sh:message "every concept needs a skos:definition" ;
+    ] ;
+    sh:property [
+        sh:path skos:broader ;
+        sh:nodeKind sh:IRI ;
+        sh:message "skos:broader must point at another concept" ;
+    ] .

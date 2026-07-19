@@ -1,7 +1,13 @@
 name: Docs
 
 # Builds the static documentation site (site/) plus generated Javadoc and deploys
-# it to GitHub Pages. Served at the default project Pages URL: https://chaturai.github.io/cortex/.
+# it to GitHub Pages. Served at https://cortex.chatur.ai/ (the default project Pages URL,
+# https://chaturai.github.io/cortex/, redirects there).
+#
+# The custom domain is configured in the repository's Pages settings, not in this repo: publishing
+# from a custom Actions workflow means GitHub creates no CNAME file and ignores one if present, so
+# there is deliberately no site/CNAME to keep in sync. Every link in site/ is relative, which is why
+# the domain change needed no edits there.
 on:
   push:
     branches: [ "main" ]

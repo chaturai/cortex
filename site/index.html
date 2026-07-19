@@ -16,6 +16,7 @@
       <ul class="nav-links">
         <li><a href="architecture.html">Architecture</a></li>
         <li><a href="getting-started.html">Getting started</a></li>
+        <li><a href="skos-tutorial.html">SKOS tutorial</a></li>
         <li><a href="mcp.html">MCP server</a></li>
         <li><a href="configuration.html">Configuration</a></li>
         <li><a class="ext" href="api/index.html">API</a></li>
@@ -32,8 +33,7 @@
           ingestion, provenance, inference, and full-text search — exposed to AI agents over MCP.</p>
         <div class="badges">
           <a href="https://github.com/chaturai/cortex/actions/workflows/gradle.yml"><img alt="CI" src="https://github.com/chaturai/cortex/actions/workflows/gradle.yml/badge.svg?branch=main"></a>
-          <a href="https://codecov.io/gh/chaturai/cortex"><img alt="Coverage" src="https://codecov.io/gh/chaturai/cortex/branch/main/graph/badge.svg"></a>
-          <a href="https://github.com/chaturai/cortex/tags"><img alt="Release" src="https://img.shields.io/github/v/tag/chaturai/cortex?label=release&sort=semver"></a>
+          <a href="https://central.sonatype.com/artifact/ai.chatur/cortex-spring-boot-starter"><img alt="Maven Central" src="https://img.shields.io/maven-central/v/ai.chatur/cortex-spring-boot-starter?label=Maven%20Central"></a>
         </div>
         <div class="cta-row">
           <a class="btn btn-primary" href="getting-started.html">Get started</a>
@@ -107,7 +107,10 @@
 &lt;/dependency&gt;</code></pre>
         </div>
 
-        <p class="mt-2"><a class="btn btn-primary" href="getting-started.html">Full getting-started guide →</a></p>
+        <p class="mt-2">
+          <a class="btn btn-primary" href="getting-started.html">Full getting-started guide →</a>
+          <a class="btn btn-ghost" href="skos-tutorial.html">Tutorial: a vocabulary with SKOS →</a>
+        </p>
       </div>
     </section>
 
@@ -143,7 +146,7 @@
         </div>
         <ul>
           <li><a href="https://github.com/chaturai/cortex">Source &amp; issues on GitHub</a> — <code>chaturai/cortex</code></li>
-          <li><a href="api/index.html">API reference (Javadoc)</a> for the three published modules</li>
+          <li><a href="api/index.html">API reference (Javadoc)</a> for the three modules that carry source</li>
           <li><a href="https://central.sonatype.com/search?q=g:ai.chatur">Artifacts on Maven Central</a></li>
           <li>Schema authoring via the <a href="getting-started.html#schema">cortex-schema Claude Code plugin</a></li>
         </ul>
@@ -157,6 +160,7 @@
       <nav class="footer-links">
         <a href="architecture.html">Architecture</a>
         <a href="getting-started.html">Getting started</a>
+        <a href="skos-tutorial.html">SKOS tutorial</a>
         <a href="mcp.html">MCP server</a>
         <a href="configuration.html">Configuration</a>
         <a href="api/index.html">API</a>

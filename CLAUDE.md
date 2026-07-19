@@ -289,6 +289,12 @@ has nothing to restore; every other failure propagates and fails the boot.
 - **AssertJ only — zero bare `assert`.** The suite had 136 of them; bare `assert` silently no-ops
   without `-ea`, so any runner without it passed everything. Don't reintroduce one.
 - `*IntegrationTests` boots Spring; `*Tests` is isolated. The names are honest now — keep them so.
+- **The docs site's SKOS tutorial is pinned by a test.** `site/skos-tutorial.html` prints shapes,
+  rules, and sample Turtle; `SkosTutorialTests` (starter-example) runs exactly those through
+  `CortexBuilder`, loading the shapes and rules from `src/test/resources/skos-tutorial.{shapes,rules}`
+  — the same text the page shows. Same reasoning as `ExampleShapesTests`: instructions nothing
+  executes are how `cortex-schema-plugin` drifted. If you edit the tutorial's Turtle, edit those two
+  resources too, and vice versa.
 
 ## Known open items
 

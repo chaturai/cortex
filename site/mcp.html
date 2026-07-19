@@ -16,6 +16,7 @@
       <ul class="nav-links">
         <li><a href="architecture.html">Architecture</a></li>
         <li><a href="getting-started.html">Getting started</a></li>
+        <li><a href="skos-tutorial.html">SKOS tutorial</a></li>
         <li><a href="mcp.html" class="active">MCP server</a></li>
         <li><a href="configuration.html">Configuration</a></li>
         <li><a class="ext" href="api/index.html">API</a></li>
@@ -62,7 +63,7 @@ cortex:
             <tr><td><strong>Query</strong></td><td><code>sparql</code></td><td>Runs a SPARQL <code>SELECT</code> (including inferred statements); returns a text table. Read-only.</td></tr>
             <tr><td><strong>Ask</strong></td><td><code>sparql</code></td><td>Answers a SPARQL <code>ASK</code> — <code>true</code>/<code>false</code>. Read-only.</td></tr>
             <tr><td><strong>Describe</strong></td><td><code>sparql</code></td><td>Runs a SPARQL <code>DESCRIBE</code>; returns Turtle. Read-only.</td></tr>
-            <tr><td><strong>Search</strong></td><td><code>text</code></td><td>Fuzzy full-text search over labels, tolerant of typos, ranked by relevance. Read-only.</td></tr>
+            <tr><td><strong>Search</strong></td><td><code>text</code></td><td>Fuzzy full-text search over <code>rdfs:label</code> and <code>rdfs:comment</code>, tolerant of typos, ranked by relevance and by how often each resource is opened. Read-only.</td></tr>
           </tbody>
         </table>
       </div>
@@ -140,10 +141,10 @@ class MyMcpCustomizations {
       <div class="code-block">
         <span class="code-lang">Java</span>
         <pre><code>Cortex cortex = CortexBuilder.create()
-    .ontologies(ontologyTtl)   // file content as String
-    .shapes(shapesTtl)
-    .rules(rulesText)
-    .build();                  // in-memory; .persistent(dir) for on-disk</code></pre>
+    .ontologies(List.of(ontologyTtl))   // file *content*, not paths
+    .shapes(List.of(shapesTtl))
+    .rules(List.of(rulesText))
+    .build();                           // in-memory; .persistent(dir) for on-disk</code></pre>
       </div>
       <p>The same eleven services the Spring auto-configuration wires are assembled here, so the two
         paths produce identical objects.</p>
@@ -156,6 +157,7 @@ class MyMcpCustomizations {
       <nav class="footer-links">
         <a href="architecture.html">Architecture</a>
         <a href="getting-started.html">Getting started</a>
+        <a href="skos-tutorial.html">SKOS tutorial</a>
         <a href="mcp.html">MCP server</a>
         <a href="configuration.html">Configuration</a>
         <a href="api/index.html">API</a>

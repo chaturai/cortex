@@ -1,10 +1,11 @@
 # Cortex
 
 [![CI](https://github.com/chaturai/cortex/actions/workflows/gradle.yml/badge.svg?branch=main)](https://github.com/chaturai/cortex/actions/workflows/gradle.yml)
-[![Coverage](https://codecov.io/gh/chaturai/cortex/branch/main/graph/badge.svg)](https://codecov.io/gh/chaturai/cortex)
-[![Release](https://img.shields.io/github/v/tag/chaturai/cortex?label=release&sort=semver)](https://github.com/chaturai/cortex/tags)
+[![Maven Central](https://img.shields.io/maven-central/v/ai.chatur/cortex-spring-boot-starter?label=Maven%20Central)](https://central.sonatype.com/artifact/ai.chatur/cortex-spring-boot-starter)
 
 An ontology-backed knowledge graph memory store with branch-based ingestion, provenance, inference, and full-text search — exposed to AI agents over MCP.
+
+📖 **[Documentation](https://cortex.chatur.ai/)** — [getting started](https://cortex.chatur.ai/getting-started.html), a [SKOS tutorial](https://cortex.chatur.ai/skos-tutorial.html), the [architecture](https://cortex.chatur.ai/architecture.html), the [MCP server guide](https://cortex.chatur.ai/mcp.html), the [configuration reference](https://cortex.chatur.ai/configuration.html), and [Javadoc](https://cortex.chatur.ai/api/).
 
 ## What's in the box?
 
@@ -16,7 +17,7 @@ Adding the starter auto-configures a complete knowledge graph memory for your Sp
 - **Branch-based ingestion** — incoming assertions are linted, SHACL-validated **together with the already approved assertions** (so new statements may rely on approved ones to conform), trimmed of triples the graph already contains, and staged on a branch as an RDF patch. Nothing enters the graph until a human approves it; if every incoming triple is already approved, nothing is staged.
 - **PROV-O provenance** — every ingestion is recorded as a `prov:Activity` (started when the branch is staged, ended when it is approved), and every approved statement is reified and linked to its activity with `prov:wasGeneratedBy`.
 - **Rule-based inference** — derived statements are recomputed in full on startup, and extended incrementally with each approval's newly-added statements (not recomputed from scratch), and included in all query results.
-- **Full-text search** — a Lucene index over `rdfs:label` and `rdfs:comment` (`rdf:type` is mapped as well, but Jena's text index only indexes literal values, so type IRIs are skipped).
+- **Full-text search** — a Lucene index over `rdfs:label` and `rdfs:comment`, held as separate fields so a name outranks a description. `rdf:type` is deliberately not indexed: class URIs would mix their tokens into the same relevance space as human-readable prose, giving every typed resource the same filler terms.
 - **An MCP server** — tools and resources that let AI agents read and write the graph (see below).
 - **A web UI** — pages to explore the graph, search it from the navbar, and review, edit, and approve pending branches (see below).
 - **Export and import** — the approved assertions can be downloaded as a Turtle file from `/export`, and a Turtle document can be uploaded at `/import`, which stages it on a branch for review like any other ingest rather than replacing the graph.
