@@ -12,8 +12,10 @@ import org.quartz.Scheduler;
 import org.quartz.SimpleScheduleBuilder;
 import org.quartz.Trigger;
 import org.quartz.TriggerBuilder;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.quartz.SchedulerFactoryBean;
@@ -76,6 +78,44 @@ class BackupJobConfiguration {
         .withIdentity("cortexBackupJob", "cortex")
         .storeDurably()
         .build();
+  }
+
+  /**
+   * Creates the lifecycle that takes a final backup as the context closes.
+   *
+   * <p>Gated on {@code cortex.backup.on-shutdown}, defaulting to on: a consumer who asked for
+   * backups is not expecting a deliberate restart to discard up to a full interval of approved
+   * work. It is a separate switch rather than part of {@code cortex.backup.enabled} because it is
+   * the one part of the feature that makes shutdown wait on the network — see {@link
+   * BackupShutdownLifecycle} for why that wait is deliberately unbounded.
+   *
+   * <p>Matched by bean name for the same reason as the job detail and trigger.
+   *
+   * <p>The scheduler is taken as an {@link ObjectProvider} and resolved only at shutdown, which is
+   * what keeps the promise in this class's own documentation that nothing here touches the {@link
+   * Scheduler} directly. Injecting it outright would make this bean uncreatable in any context
+   * without {@code QuartzAutoConfiguration}, and would force the {@code SchedulerFactoryBean} to
+   * initialize partway through building this configuration — while it is still collecting the
+   * {@link JobDetail} beans defined here.
+   *
+   * @param schedulers resolves the scheduler at shutdown, quiesced before the final backup is taken
+   * @param cortexBackupJobDetail the backup job, so an in-flight run can be recognized
+   * @param backupRunner the runner that takes and uploads the backup
+   * @return the shutdown lifecycle
+   */
+  @Bean
+  @ConditionalOnMissingBean(name = "cortexBackupShutdownLifecycle")
+  @ConditionalOnProperty(
+      prefix = "cortex.backup",
+      name = "on-shutdown",
+      havingValue = "true",
+      matchIfMissing = true)
+  BackupShutdownLifecycle cortexBackupShutdownLifecycle(
+      ObjectProvider<Scheduler> schedulers,
+      JobDetail cortexBackupJobDetail,
+      BackupRunner backupRunner) {
+    return new BackupShutdownLifecycle(
+        schedulers::getIfAvailable, cortexBackupJobDetail, backupRunner);
   }
 
   /**
