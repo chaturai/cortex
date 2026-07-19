@@ -38,7 +38,7 @@ Add the Spring Boot starter to your project.
 **Gradle**
 
 ```kotlin
-implementation("ai.chatur:cortex-spring-boot-starter:0.1.2")
+implementation("ai.chatur:cortex-spring-boot-starter:0.1.3")
 ```
 
 **Maven**
@@ -47,7 +47,7 @@ implementation("ai.chatur:cortex-spring-boot-starter:0.1.2")
 <dependency>
   <groupId>ai.chatur</groupId>
   <artifactId>cortex-spring-boot-starter</artifactId>
-  <version>0.1.2</version>
+  <version>0.1.3</version>
 </dependency>
 ```
 
