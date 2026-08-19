@@ -134,6 +134,28 @@ public class LintService {
       log.warn("Rejected lint of malformed Turtle: {}", e.getMessage());
       return new LintResult(false, null, e.getMessage());
     }
+    Set<String> violations = getViolations(model);
+    if (!violations.isEmpty()) {
+      String errors = String.join("\n", violations);
+      log.warn("Rejected lint of {} triples: {}", model.size(), errors);
+      return new LintResult(false, null, errors);
+    }
+    return new LintResult(true, Rdf.write(model, Lang.TTL), null);
+  }
+
+  /**
+   * Reports the ways the given statements depart from the ontology: a property the ontology does
+   * not declare (other than {@code rdf:type}, {@code rdfs:label}, or {@code rdfs:comment}), or an
+   * {@code rdf:type} naming anything but an ontology class.
+   *
+   * <p>Separate from {@link #lint(String)} so the same check applies to statements that never
+   * arrived as Turtle — an edit proposed against already-approved assertions is assembled as a
+   * model, not parsed from a document.
+   *
+   * @param model the statements to check
+   * @return the violations, empty if the statements conform to the ontology
+   */
+  public Set<String> getViolations(Model model) {
     Set<String> violations = new LinkedHashSet<>();
     model
         .listStatements()
@@ -151,11 +173,6 @@ public class LintService {
                 }
               }
             });
-    if (!violations.isEmpty()) {
-      String errors = String.join("\n", violations);
-      log.warn("Rejected lint of {} triples: {}", model.size(), errors);
-      return new LintResult(false, null, errors);
-    }
-    return new LintResult(true, Rdf.write(model, Lang.TTL), null);
+    return violations;
   }
 }

@@ -12,7 +12,9 @@ import org.apache.jena.query.Dataset;
 import org.apache.jena.query.Query;
 import org.apache.jena.query.QueryFactory;
 import org.apache.jena.rdf.model.Literal;
+import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ResourceFactory;
+import org.apache.jena.rdf.model.Statement;
 import org.apache.jena.reasoner.rulesys.Rule;
 import org.apache.jena.shacl.Shapes;
 import org.apache.jena.system.Txn;
@@ -74,7 +76,7 @@ public class StatsService {
         countTriplesAddedToday(),
         countPendingBranches(),
         countAssertionTriples(),
-        countInferenceTriples(),
+        countInferredTriples(),
         countOntologyClasses(),
         shapes.numRootShapes(),
         rules.size());
@@ -98,21 +100,56 @@ public class StatsService {
   }
 
   long countPendingBranches() {
+    // Count only real branches, exactly as BranchRepository.list does. The assertions dataset also
+    // holds reserved named graphs that are not branches: cortex://provenance, cortex://usage, and
+    // each branch's cortex://retract-<uuid>. Excluding only provenance let the usage graph —
+    // created
+    // the first time any resource is viewed — show as a phantom pending branch on the home page.
     return Txn.calculateRead(
         assertions,
-        () ->
-            Iter.count(
-                Iter.filter(
-                    assertions.listModelNames(),
-                    name -> !CortexNamespace.PROVENANCE.equals(name))));
+        () -> Iter.count(Iter.filter(assertions.listModelNames(), CortexNamespace::isBranch)));
   }
 
   long countAssertionTriples() {
     return Txn.calculateRead(assertions, () -> assertions.getDefaultModel().size());
   }
 
-  long countInferenceTriples() {
-    return Txn.calculateRead(inferences, () -> inferences.getDefaultModel().size());
+  /**
+   * Counts what the reasoner actually derived: the inference dataset less the approved assertions
+   * it was computed from, and less the ontology's own axioms.
+   *
+   * <p>The ontology is bound to the reasoner as its schema, so its axioms are materialized into the
+   * inference dataset alongside the conclusions drawn from them — counting the dataset whole
+   * reports every class declaration and every {@code rdfs:domain} as something inference produced.
+   *
+   * <p>Clamped at zero: an {@code approve} merges into the assertions and extends the closure in
+   * two steps, so a snapshot taken between them can momentarily see more assertions than the
+   * closure has caught up with.
+   */
+  long countInferredTriples() {
+    long total = Txn.calculateRead(inferences, () -> inferences.getDefaultModel().size());
+    return Math.max(0, total - countAssertionTriples() - countOntologyTriples());
+  }
+
+  /**
+   * Counts the ontology axioms materialized into the inference dataset, skipping any that were also
+   * approved as assertions — {@link #countAssertionTriples()} already counts those, and the
+   * inference dataset holds one copy.
+   */
+  long countOntologyTriples() {
+    List<Statement> axioms =
+        Txn.calculateRead(
+            inferences,
+            () -> {
+              Model model = inferences.getDefaultModel();
+              return ontModel.listStatements().filterKeep(model::contains).toList();
+            });
+    return Txn.calculateRead(
+        assertions,
+        () -> {
+          Model model = assertions.getDefaultModel();
+          return axioms.stream().filter(axiom -> !model.contains(axiom)).count();
+        });
   }
 
   long countOntologyClasses() {

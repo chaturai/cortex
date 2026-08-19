@@ -4,7 +4,7 @@ spring:
   ai:
     mcp:
       server:
-        protocol: stateless
+        protocol: streamable
         type: sync
         instructions: Use this MCP for knowledge graph operations. Load cortex://ontology resource on connection
 

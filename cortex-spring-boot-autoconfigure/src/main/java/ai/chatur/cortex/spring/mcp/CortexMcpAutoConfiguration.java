@@ -1,5 +1,6 @@
 package ai.chatur.cortex.spring.mcp;
 
+import ai.chatur.cortex.CortexBranches;
 import ai.chatur.cortex.CortexIngestor;
 import ai.chatur.cortex.CortexLinter;
 import ai.chatur.cortex.CortexOntology;
@@ -55,12 +56,13 @@ public class CortexMcpAutoConfiguration {
    * Creates the MCP tool letting AI agents ingest assertions into the knowledge graph.
    *
    * @param cortex the ingestor role used to ingest assertions
+   * @param branches the branch role used to approve a branch a human confirmed over elicitation
    * @return the ingest MCP tool
    */
   @Bean
   @ConditionalOnMissingBean
-  IngestTools ingestTools(CortexIngestor cortex) {
-    return new IngestTools(cortex);
+  IngestTools ingestTools(CortexIngestor cortex, CortexBranches branches) {
+    return new IngestTools(cortex, branches);
   }
 
   /**

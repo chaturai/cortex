@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import ai.chatur.cortex.BranchChange;
 import ai.chatur.cortex.BranchRename;
+import ai.chatur.cortex.spring.support.FakeBranches;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -30,7 +31,9 @@ class BranchEditControllerTests {
                 "example://kb/Agent",
                 false,
                 null,
-                null));
+                null,
+                null,
+                false));
 
     ResponseEntity<Void> response = controller.updateBranch("branch-1", changes);
 

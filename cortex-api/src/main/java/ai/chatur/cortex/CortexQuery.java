@@ -1,6 +1,7 @@
 package ai.chatur.cortex;
 
 import java.util.List;
+import java.util.Map;
 
 /** Looks up instances and resources in the knowledge graph, including SPARQL access. */
 public interface CortexQuery {
@@ -12,6 +13,15 @@ public interface CortexQuery {
    * @return the instance identifiers sorted alphabetically, empty if the class is unknown
    */
   List<Term> getInstances(String type);
+
+  /**
+   * Counts the instances of every class, including memberships derived by inference, so an instance
+   * of a subclass counts towards its superclasses too.
+   *
+   * @return the number of distinct instances keyed by class URI; a class with no instances is
+   *     absent rather than mapped to zero
+   */
+  Map<String, Long> countInstances();
 
   /**
    * Returns everything known about a resource, including statements derived by inference.

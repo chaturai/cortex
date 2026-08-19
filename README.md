@@ -187,7 +187,7 @@ The starter registers an MCP server (via Spring AI) through which agents interac
 | **Query** | `sparql` — a SPARQL `SELECT` query | Runs the query against the knowledge graph, including statements derived by inference. Returns the results as a text table. Read-only and idempotent. |
 | **Ask** | `sparql` — a SPARQL `ASK` query | Answers a yes/no question against the knowledge graph, including statements derived by inference. Returns `true` or `false`. Read-only and idempotent. |
 | **Describe** | `sparql` — a SPARQL `DESCRIBE` query | Fetches everything known about the described resources, including statements derived by inference. Returns the results in Turtle syntax. Read-only and idempotent. |
-| **Search** | `text` — text to search for | Finds resources by fuzzy full-text search over their labels, tolerating small typos and spelling variations. Returns matches ranked by relevance. Read-only and idempotent. |
+| **Search** | `text` — text to search for | Finds resources by full-text search over their labels, comments, and SKOS annotations. Matching is exact after English-language analysis, so word forms still match through stemming (searching *reports* finds *report*). Returns matches ranked by relevance and by how often each resource is opened. Read-only and idempotent. |
 
 ### Resources
 
@@ -218,14 +218,20 @@ The starter also serves a small UI for exploring the graph and reviewing what ag
 |---|---|
 | `/` | Home page with knowledge graph statistics: triples added today, pending branches, asserted and inferred triples, ontology classes, SHACL shapes, and inference rules. |
 | `/ontology` | The ontology in Turtle syntax. |
-| `/assertions` | The class hierarchy of the ontology. |
+| `/assertions` | The class hierarchy of the ontology, each class showing how many instances it has (inferred memberships included). |
 | `/assertions?type={class}` | The known instances of a class, including inferred ones. |
-| `/describe?uri={uri}` | Everything known about a resource — its statements with provenance timestamps. |
-| `/search?q={text}` | Fuzzy full-text search results — matching resources linked to their describe pages, with the matched text alongside. |
+| `/describe?uri={uri}` | Everything known about a resource — its statements with provenance timestamps, and an origin badge on those without one: **ontology** for the ontology's own axioms, **inferred** for the reasoner's conclusions. |
+| `/search?q={text}` | Full-text search results — matching resources linked to their describe pages, with the matched text alongside. |
 | `/branches` | The branches staged by ingestion and awaiting review, each with its provenance activity rendered as badges: `prov:Activity`, when it was staged, and how many triples it carries. |
 | `/branches/{branch}` | The assertions staged on a branch, grouped by subject with each statement shown as on the describe page. Reviewers can delete statements, edit objects, and rename subjects inline; changes stay in the browser until **Save changes** pushes them to the staged graph as an RDF patch (`POST /branches/{branch}/update` for deletions and object edits, `POST /branches/{branch}/rename` for subject renames — both JSON), and **Reset** discards them. **Approve** (`POST /branches/{branch}/approve` — merge into the graph with provenance, extending inference incrementally) and **Reject** (`POST /branches/{branch}/reject` — discard the branch) sit in the top-right corner. |
 | `/export` | Downloads the approved assertions as a dated `cortex-assertions-<date>.ttl` file. Instance data only: staged branches and provenance are excluded, and so is the ontology. |
 | `/import` (`POST`, multipart `file`) | Stages an uploaded Turtle document on a branch for review. **This is not a restore** — the upload goes through `ingest`, so it is linted, SHACL-validated, and reduced to what is novel, then lands on `/branches` for a human to approve. Re-importing a file from `/export` therefore stages nothing, since every statement in it is already approved. |
+
+## Migrating to 0.1.4
+
+- **Search is no longer fuzzy, and it now covers SKOS annotations.** The text index went from two fields (`rdfs:label` and `rdfs:comment`, with a name-over-description boost) to a single field fed by `rdfs:label`, `rdfs:comment`, and the SKOS labelling and note properties (`skos:prefLabel`, `skos:altLabel`, `skos:definition`, `skos:note`, …), analysed with Lucene's `EnglishAnalyzer`. Matching is now exact after analysis — recall comes from English stemming rather than edit-distance fuzz — so a typo that used to squeak through no longer does, while plurals and word forms still match. Ranking is Lucene relevance weighted by how often a resource is opened; the name-over-description boost is gone. There is no API change.
+- **`CortexStats.inferenceTriples()` renamed to `inferredTriples()`, and it now counts only derivations.** It used to be the size of the whole inference dataset — the approved assertions and the ontology's own axioms included — while the home page labelled it "Inferred triples". It now reports that dataset less the assertions and less the ontology axioms, so it answers "what did the reasoner add?". Expect a smaller number than 0.1.3 reported for the same graph. `assertionTriples()` is unchanged.
+- **`ProvenancedStatement` gained an `origin` component.** `describe` used to report every statement without provenance as inferred, which mislabelled the ontology's own axioms: the reasoner is bound to the ontology as its schema, so axioms such as `rdfs:domain` are materialized alongside the reasoner's conclusions and carry no provenance either. The new `StatementOrigin` (`ASSERTED`, `ONTOLOGY`, `INFERRED`) tells the three apart, and `/describe` badges them accordingly. This is **source-breaking** for code constructing a `ProvenancedStatement` — the canonical constructor now takes a fourth argument. Reading `created()` is unaffected: it is still non-null exactly when the origin is `ASSERTED`.
 
 ## Migrating to 0.1.1
 

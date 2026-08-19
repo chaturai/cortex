@@ -4,17 +4,42 @@
   <body>
     <nav th:replace="~{fragments :: navbar}"></nav>
     <main>
-      <div class="describe-container">
-        <h1 th:text="${subject}"></h1>
-        <ul class="statement-list" th:if="${!statements.isEmpty()}">
-          <li class="statement-item" th:each="statement : ${statements}" th:classappend="${statement.created == null ? 'statement-inferred' : 'statement-asserted'}">
+      <div class="describe-container" th:data-revise-url="@{/describe/revise}" th:data-branches-url="@{/branches}">
+        <div class="branch-header">
+          <h1
+            class="subject-heading"
+            contenteditable="plaintext-only"
+            spellcheck="false"
+            th:text="${name}"
+            th:data-uri="${subject}"
+            th:data-name="${name}"></h1>
+          <div class="branch-actions">
+            <button type="button" id="save-changes" class="btn btn-save" hidden>Propose changes</button>
+            <button type="button" id="reset-changes" class="btn btn-reset" hidden>Reset</button>
+            <button type="button" id="add-statement" class="btn btn-add">Add statement</button>
+          </div>
+        </div>
+        <ul class="statement-list">
+          <li
+            class="statement-item"
+            th:each="statement : ${statements}"
+            th:classappend="'statement-' + ${#strings.toLowerCase(statement.origin)}"
+            th:data-subject="${subject}"
+            th:data-predicate="${statement.predicate.uri}"
+            th:data-object="${statement.object.uri != null ? statement.object.uri : statement.object.localName}"
+            th:data-display="${statement.object.prefix != null ? statement.object.prefix + ':' + statement.object.localName : statement.object.localName}"
+            th:data-literal="${statement.literal}"
+            th:data-datatype="${statement.datatype}"
+            th:data-language="${statement.language}">
             <code class="statement-predicate">
               <a
                 class="code-link"
                 th:href="@{/describe(uri=${statement.predicate.uri})}"
                 th:text="${statement.predicate.prefix != null ? statement.predicate.prefix + ':' + statement.predicate.localName : statement.predicate.localName}"></a>
             </code>
-            <code class="statement-object">
+            <code
+              class="statement-object"
+              th:if="${statement.origin.name() != 'ASSERTED'}">
               <a
                 class="code-link"
                 th:if="${statement.object.uri != null}"
@@ -22,11 +47,30 @@
                 th:text="${statement.object.prefix != null ? statement.object.prefix + ':' + statement.object.localName : statement.object.localName}"></a>
               <span th:unless="${statement.object.uri != null}" th:text="${statement.object.localName}"></span>
             </code>
+            <code
+              class="statement-object"
+              th:if="${statement.origin.name() == 'ASSERTED'}"
+              contenteditable="plaintext-only"
+              spellcheck="false"
+              th:text="${statement.object.prefix != null ? statement.object.prefix + ':' + statement.object.localName : statement.object.localName}"></code>
+            <a
+              class="statement-follow"
+              th:if="${statement.origin.name() == 'ASSERTED' and statement.object.uri != null}"
+              th:href="@{/describe(uri=${statement.object.uri})}"
+              title="Open this resource">&rarr;</a>
             <span
               class="statement-created"
               th:if="${statement.created != null}"
               th:text="${statement.created}"></span>
-            <span class="statement-inferred-badge" th:if="${statement.created == null}">inferred</span>
+            <span
+              class="statement-origin-badge"
+              th:unless="${statement.origin.name() == 'ASSERTED'}"
+              th:text="${#strings.toLowerCase(statement.origin)}"></span>
+            <button
+              type="button"
+              class="statement-delete"
+              th:if="${statement.origin.name() == 'ASSERTED'}"
+              title="Remove statement">&times;</button>
           </li>
         </ul>
         <p class="statements-empty" th:if="${statements.isEmpty()}">
@@ -34,5 +78,6 @@
         </p>
       </div>
     </main>
+    <script type="module" th:src="@{/js/describe.js}"></script>
   </body>
 </html>

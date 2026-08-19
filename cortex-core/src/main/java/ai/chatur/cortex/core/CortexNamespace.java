@@ -34,6 +34,9 @@ public final class CortexNamespace {
   public static final Property VIEW_COUNT_UPDATED =
       ResourceFactory.createProperty(NS + "viewCountUpdated");
 
+  /** The local-name prefix of every branch graph. */
+  private static final String BRANCH_PREFIX = "branch-";
+
   private CortexNamespace() {}
 
   /**
@@ -53,6 +56,37 @@ public final class CortexNamespace {
    */
   public static Resource getResource() {
     UUID uuid = UUID.randomUUID();
-    return getResource("branch-" + uuid);
+    return getResource(BRANCH_PREFIX + uuid);
+  }
+
+  /**
+   * Returns the graph holding the statements a branch stages for <em>removal</em> from the approved
+   * assertions.
+   *
+   * <p>It is a graph of its own rather than part of the branch graph because the branch graph is a
+   * set of statements to add, and the two must not be confused with each other by any reader. Its
+   * name deliberately does not start with {@code branch-}, so {@link #isBranch} does not mistake it
+   * for a branch of its own.
+   *
+   * @param branch the branch resource, named {@code cortex://branch-<uuid>}
+   * @return a resource named {@code cortex://retract-<uuid>}
+   */
+  public static Resource getRetractions(Resource branch) {
+    return getResource("retract-" + branch.getURI().substring((NS + BRANCH_PREFIX).length()));
+  }
+
+  /**
+   * Reports whether the named graph is a branch, by its name alone.
+   *
+   * <p>Branches are named graphs of the assertions dataset, but so are {@link #PROVENANCE}, {@link
+   * #USAGE}, and the retraction graphs of {@link #getRetractions branches themselves} — none of
+   * which is a branch, and every one of which would otherwise be listed as one and could be
+   * approved into the default graph.
+   *
+   * @param graph the named graph resource
+   * @return {@code true} if the graph is a branch
+   */
+  public static boolean isBranch(Resource graph) {
+    return graph.isURIResource() && graph.getURI().startsWith(NS + BRANCH_PREFIX);
   }
 }

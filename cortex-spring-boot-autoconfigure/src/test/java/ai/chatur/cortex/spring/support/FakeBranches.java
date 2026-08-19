@@ -1,4 +1,4 @@
-package ai.chatur.cortex.spring.branch;
+package ai.chatur.cortex.spring.support;
 
 import ai.chatur.cortex.BranchChange;
 import ai.chatur.cortex.BranchInfo;
@@ -10,25 +10,25 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Hand-rolled fake of {@link CortexBranches}, shared by {@link BranchControllerTests} and {@link
- * BranchEditControllerTests}. Backed by simple maps rather than a real graph, and records the
- * arguments of the last mutating call so tests can assert the controller delegated correctly.
+ * Hand-rolled fake of {@link CortexBranches}, shared by the tests of every controller and tool that
+ * reads or resolves a branch. Backed by simple maps rather than a real graph, and records the
+ * arguments of the last mutating call so tests can assert the caller delegated correctly.
  */
-final class FakeBranches implements CortexBranches {
+public final class FakeBranches implements CortexBranches {
 
   private final List<String> branches;
   private final Map<String, BranchInfo> infoByBranch;
   private final Map<String, List<BranchSubject>> subjectsByBranch;
   private final Set<String> existingBranches;
 
-  String approvedBranch;
-  String rejectedBranch;
-  String lastUpdatedBranch;
-  List<BranchChange> lastUpdateChanges;
-  String lastRenamedBranch;
-  List<BranchRename> lastRenames;
+  public String approvedBranch;
+  public String rejectedBranch;
+  public String lastUpdatedBranch;
+  public List<BranchChange> lastUpdateChanges;
+  public String lastRenamedBranch;
+  public List<BranchRename> lastRenames;
 
-  FakeBranches(
+  public FakeBranches(
       List<String> branches,
       Map<String, BranchInfo> infoByBranch,
       Map<String, List<BranchSubject>> subjectsByBranch,
@@ -39,7 +39,7 @@ final class FakeBranches implements CortexBranches {
     this.existingBranches = existingBranches;
   }
 
-  static FakeBranches withNoBranches() {
+  public static FakeBranches withNoBranches() {
     return new FakeBranches(List.of(), Map.of(), Map.of(), Set.of());
   }
 

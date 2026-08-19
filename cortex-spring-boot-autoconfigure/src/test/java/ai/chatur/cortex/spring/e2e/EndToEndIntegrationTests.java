@@ -33,7 +33,7 @@ import org.springframework.boot.test.web.server.LocalServerPort;
  */
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties = {"spring.ai.mcp.server.protocol=stateless", "spring.ai.mcp.server.type=sync"})
+    properties = {"spring.ai.mcp.server.protocol=streamable", "spring.ai.mcp.server.type=sync"})
 class EndToEndIntegrationTests {
 
   @SpringBootApplication
@@ -81,11 +81,11 @@ class EndToEndIntegrationTests {
       assertThat(matcher.find()).as("the ingest response carries the staged branch name").isTrue();
       String branch = matcher.group(1);
 
-      // The branches page lists the branch with its provenance activity badges
+      // The branches page lists the branch with its provenance activity and size badges
       String branchesPage = get("/branches");
       assertThat(branchesPage).contains(branch);
       assertThat(branchesPage).contains("prov:Activity");
-      assertThat(branchesPage).contains("6 triples");
+      assertThat(branchesPage).as("the size badge shows the six staged additions").contains("+6");
 
       // The branch page shows the staged statements grouped by subject
       String branchPage = get("/branches/" + branch);
@@ -104,12 +104,12 @@ class EndToEndIntegrationTests {
              "predicate":"http://www.w3.org/2000/01/rdf-schema#label",
              "object":"end to end task","literal":true,
              "datatype":"http://www.w3.org/2001/XMLSchema#string",
-             "newObject":"edited end to end task"},
+             "newObject":"edited end to end task","retracted":false},
             {"subject":"example://kb/E2ETask",
              "predicate":"http://www.w3.org/2000/01/rdf-schema#comment",
              "object":"task used by the end to end test","literal":true,
              "datatype":"http://www.w3.org/2001/XMLSchema#string",
-             "newObject":null}
+             "newObject":null,"retracted":false}
           ]
           """;
       HttpResponse<String> updated = postJson("/branches/" + branch + "/update", changes);
@@ -138,6 +138,13 @@ class EndToEndIntegrationTests {
       String describePage = get("/describe?uri=example://kb/E2ETask");
       assertThat(describePage).contains("edited end to end task");
       assertThat(describePage).contains("statement-created");
+
+      // The assertions page lists each class with a count of its instances
+      String assertionsPage = get("/assertions");
+      assertThat(assertionsPage)
+          .as("each class is rendered with its instance-count badge")
+          .contains("class-count")
+          .contains("Task");
 
       // The agent finds the curated assertions over MCP search
       String found = getText(client, "search", Map.of("text", "edited"));
@@ -257,6 +264,82 @@ class EndToEndIntegrationTests {
     assertThat(branchPage)
         .as("the pre-rename IRI no longer appears as an object")
         .doesNotContain("data-object=\"example://kb/RenameAgent\"");
+
+    // The agent above appears only as an object, which is the half of a rename that always worked.
+    // Renaming the task exercises the other half: its own statements have to move under the new
+    // IRI rather than be deleted, or the reviewer watches the node vanish from the page.
+    String renameSubject =
+        """
+        [{"subject":"example://kb/RenameTask","newSubject":"example://kb/RenamedTask"}]
+        """;
+    assertThat(postJson("/branches/" + branch + "/rename", renameSubject).statusCode())
+        .isEqualTo(204);
+
+    String renamedPage = get("/branches/" + branch);
+    assertThat(renamedPage)
+        .as("the renamed subject is still staged, with its statement, under its new IRI")
+        .contains("data-subject=\"example://kb/RenamedTask\"")
+        .contains("data-object=\"example://kb/RenamedAgent\"");
+    assertThat(renamedPage)
+        .as("and nothing is left behind at the old IRI")
+        .doesNotContain("example://kb/RenameTask\"");
+  }
+
+  /**
+   * Exercises the describe page's edit flow over real HTTP: an approved statement is edited, the
+   * edit comes back as a branch to review, and approving it replaces the value rather than adding a
+   * second one beside it.
+   */
+  @Test
+  void reviseShouldStageAnEditOfAnApprovedResourceForReview()
+      throws IOException, InterruptedException {
+    String ttl =
+        """
+        @prefix : <example://ontology#> .
+        @prefix kb: <example://kb/> .
+
+        kb:ReviseTask :assignedTo kb:FirstAssignee .
+        """;
+    try (McpSyncClient client = mcpClient()) {
+      Matcher matcher = BRANCH.matcher(getText(client, "ingest", Map.of("ttl", ttl)));
+      assertThat(matcher.find()).isTrue();
+      assertThat(postForm("/branches/" + matcher.group(1) + "/approve").statusCode())
+          .isEqualTo(302);
+    }
+
+    String edit =
+        """
+        {"subject":"example://kb/ReviseTask","newSubject":null,"changes":[
+          {"subject":"example://kb/ReviseTask",
+           "predicate":"example://ontology#assignedTo",
+           "object":"example://kb/FirstAssignee",
+           "literal":false,"datatype":null,"language":null,
+           "newObject":"example://kb/SecondAssignee","retracted":false}]}
+        """;
+    HttpResponse<String> proposed = postJson("/describe/revise", edit);
+    assertThat(proposed.statusCode()).isEqualTo(200);
+    Matcher matcher = BRANCH.matcher(proposed.body());
+    assertThat(matcher.find()).as("the response names the branch to review").isTrue();
+    String branch = matcher.group(1);
+
+    String branchPage = get("/branches/" + branch);
+    assertThat(branchPage)
+        .as("the reviewer sees the replacement staged for addition")
+        .contains("data-object=\"example://kb/SecondAssignee\"");
+    assertThat(branchPage)
+        .as("and the value it replaces struck through, staged for removal")
+        .contains("statement-retracted");
+    assertThat(get("/describe?uri=example://kb/ReviseTask"))
+        .as("nothing has changed yet: the edit is a proposal like any other")
+        .contains("FirstAssignee");
+
+    assertThat(postForm("/branches/" + branch + "/approve").statusCode()).isEqualTo(302);
+
+    String described = get("/describe?uri=example://kb/ReviseTask");
+    assertThat(described).contains("SecondAssignee");
+    assertThat(described)
+        .as("the old value is gone rather than left standing beside the new one")
+        .doesNotContain("FirstAssignee");
   }
 
   McpSyncClient mcpClient() {
