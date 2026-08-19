@@ -13,7 +13,8 @@
             <div class="branch-badges">
               <span class="badge badge-activity">prov:Activity</span>
               <span class="badge badge-started" th:if="${branch.started != null}" th:text="${branch.started}"></span>
-              <span class="badge badge-size" th:text="${branch.size} + ' triples'"></span>
+              <span class="badge badge-size" th:text="'+' + ${branch.additions}"></span>
+              <span class="badge badge-retractions" th:if="${branch.retractions > 0}" th:text="'&minus;' + ${branch.retractions}"></span>
             </div>
           </div>
         </div>

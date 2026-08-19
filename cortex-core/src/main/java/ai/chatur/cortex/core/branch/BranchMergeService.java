@@ -39,25 +39,31 @@ public class BranchMergeService {
   }
 
   /**
-   * Merges the assertions staged on the given branch into the default graph, closing the {@link
-   * ai.chatur.cortex.core.PROV#Activity provenance activity} of the ingestion and recording the
-   * reification of every merged statement, linked to the activity, in the {@link
-   * CortexNamespace#PROVENANCE provenance graph}, and deletes the branch.
+   * Merges the assertions staged on the given branch into the default graph — removing the
+   * statements it stages for removal and adding those it stages for addition — closing the {@link
+   * ai.chatur.cortex.core.PROV#Activity provenance activity} of the ingestion, recording the
+   * reification of every merged statement linked to the activity in the {@link
+   * CortexNamespace#PROVENANCE provenance graph} and clearing the reifications of every retracted
+   * one, and deletes the branch.
+   *
+   * <p>Retractions are applied <em>before</em> additions, so an edit that replaces the object of a
+   * statement leaves the replacement in place rather than removing it again.
    *
    * <p>The novelty diff, the merge, and the branch deletion all happen inside one write transaction
    * on the assertions dataset: TDB2 serializes writers, so two branches can never be approved
    * concurrently, and a failure partway through aborts the whole transaction rather than leaving
    * the data merged while the branch is still pending (which used to risk a second, duplicate
    * {@code prov:Activity} on a retried approval). Staged triples that were approved through another
-   * branch in the meantime are skipped, so a statement is never merged or reified twice — this is
-   * now guaranteed by that same serialization, rather than a best-effort race with the other
-   * branch's approval.
+   * branch in the meantime are skipped, and staged retractions of statements another branch already
+   * retracted are no-ops, so a statement is never merged or reified twice — this is now guaranteed
+   * by that same serialization, rather than a best-effort race with the other branch's approval.
    *
    * @param branch the branch name
-   * @return the newly approved assertions — empty if every staged triple was approved through
-   *     another branch in the meantime — or {@code null} if the branch does not exist
+   * @return what the merge did — the newly approved assertions, empty if every staged triple was
+   *     approved through another branch in the meantime, and whether anything was retracted — or
+   *     {@code null} if the branch does not exist
    */
-  public Model approve(String branch) {
+  public MergeResult approve(String branch) {
     return branchRepository.onBranch(
         branch,
         "approve",
@@ -65,15 +71,29 @@ public class BranchMergeService {
             Txn.calculateWrite(
                 assertions,
                 () -> {
+                  Resource retractions = CortexNamespace.getRetractions(namedModel);
+                  Model provenanceGraph = assertions.getNamedModel(CortexNamespace.PROVENANCE);
+                  Model retracted =
+                      assertions
+                          .getNamedModel(retractions)
+                          .intersection(assertions.getDefaultModel());
                   Model diff =
                       assertions.getNamedModel(namedModel).difference(assertions.getDefaultModel());
                   Model data = getData(diff, namedModel);
                   Model provenance = provenanceRecorder.getProvenance(diff, data, namedModel);
+                  Model stale = provenanceRecorder.getStaleProvenance(retracted, provenanceGraph);
+                  assertions.getDefaultModel().remove(retracted);
                   assertions.getDefaultModel().add(data);
-                  assertions.getNamedModel(CortexNamespace.PROVENANCE).add(provenance);
+                  provenanceGraph.remove(stale);
+                  provenanceGraph.add(provenance);
                   assertions.removeNamedModel(namedModel);
-                  log.info("Approved branch {}", branch);
-                  return data;
+                  assertions.removeNamedModel(retractions);
+                  log.info(
+                      "Approved branch {}: {} added, {} retracted",
+                      branch,
+                      data.size(),
+                      retracted.size());
+                  return new MergeResult(data, !retracted.isEmpty());
                 }),
         null);
   }
@@ -97,7 +117,8 @@ public class BranchMergeService {
   }
 
   /**
-   * Rejects the given branch, discarding its staged assertions, if it exists.
+   * Rejects the given branch, discarding both the assertions it stages for addition and those it
+   * stages for removal, if it exists.
    *
    * @param branch the branch name
    */
@@ -106,7 +127,12 @@ public class BranchMergeService {
         branch,
         "reject",
         namedModel -> {
-          Txn.executeWrite(assertions, () -> assertions.removeNamedModel(namedModel));
+          Txn.executeWrite(
+              assertions,
+              () -> {
+                assertions.removeNamedModel(namedModel);
+                assertions.removeNamedModel(CortexNamespace.getRetractions(namedModel));
+              });
           log.info("Rejected branch {}", branch);
           return null;
         },

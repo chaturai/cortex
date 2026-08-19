@@ -67,14 +67,18 @@ class BranchTests {
                     dropped.object(),
                     dropped.literal(),
                     dropped.datatype(),
-                    null),
+                    dropped.language(),
+                    null,
+                    false),
                 new BranchChange(
                     subject.uri(),
                     edited.predicateUri(),
                     edited.object(),
                     edited.literal(),
                     edited.datatype(),
-                    "example://kb/EditedAgent")));
+                    edited.language(),
+                    "example://kb/EditedAgent",
+                    false)));
     assertThat(updated).as("the branch existed, so the edits were applied").isTrue();
 
     List<BranchStatement> statements = cortex.getBranchSubjects(branch).getFirst().statements();
@@ -110,15 +114,98 @@ class BranchTests {
         .as("the statement referencing the renamed agent as object was rewritten")
         .isEqualTo("example://kb/RenamedAgent");
 
-    // Renaming the task itself removes the statements describing it as subject, rather than
-    // rewriting them.
+    // Renaming the task itself moves the statements describing it under the new IRI, rather than
+    // deleting them: a rename that emptied the node would be a deletion wearing a rename's clothes,
+    // and the reviewer would watch the node disappear from the page.
     boolean renamedTask =
         cortex.renameBranchSubjects(
             branch, List.of(new BranchRename(task.uri(), "example://kb/RenamedTask")));
     assertThat(renamedTask).isTrue();
+    List<BranchSubject> renamed = cortex.getBranchSubjects(branch);
+    assertThat(renamed)
+        .as("the renamed subject is still staged, under its new IRI")
+        .singleElement()
+        .satisfies(subject -> assertThat(subject.uri()).isEqualTo("example://kb/RenamedTask"));
+    assertThat(renamed.getFirst().statements())
+        .as("its own statements came with it, still pointing at the renamed agent")
+        .singleElement()
+        .satisfies(
+            statement -> assertThat(statement.object()).isEqualTo("example://kb/RenamedAgent"));
+  }
+
+  @Test
+  void shouldRenameASubjectThatIsAlsoAnObject() {
+    String branch =
+        cortex
+            .ingest(
+                """
+                @prefix : <example://ontology#> .
+                @prefix kb: <example://kb/> .
+
+                kb:SelfTask :assignedTo kb:SelfTask .
+                """)
+            .branch();
+
+    boolean renamed =
+        cortex.renameBranchSubjects(
+            branch, List.of(new BranchRename("example://kb/SelfTask", "example://kb/OtherTask")));
+
+    assertThat(renamed).isTrue();
     assertThat(cortex.getBranchSubjects(branch))
-        .as("renaming a subject removes its own statements rather than rewriting them")
-        .isEmpty();
+        .as("a statement carrying the renamed IRI in both positions is rewritten in both")
+        .singleElement()
+        .satisfies(
+            subject -> {
+              assertThat(subject.uri()).isEqualTo("example://kb/OtherTask");
+              assertThat(subject.statements())
+                  .singleElement()
+                  .satisfies(
+                      statement ->
+                          assertThat(statement.object()).isEqualTo("example://kb/OtherTask"));
+            });
+  }
+
+  @Test
+  void shouldRoundTripALanguageTaggedLiteralThroughAnEdit() {
+    String branch =
+        cortex
+            .ingest(
+                """
+                @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+                @prefix kb: <example://kb/> .
+
+                kb:TaggedAgent rdfs:label "l'agent"@fr .
+                """)
+            .branch();
+    BranchSubject subject = cortex.getBranchSubjects(branch).getFirst();
+    BranchStatement label = subject.statements().getFirst();
+    assertThat(label.language()).as("the language tag survives the read").isEqualTo("fr");
+
+    boolean updated =
+        cortex.updateBranch(
+            branch,
+            List.of(
+                new BranchChange(
+                    subject.uri(),
+                    label.predicateUri(),
+                    label.object(),
+                    label.literal(),
+                    label.datatype(),
+                    label.language(),
+                    "l'agente",
+                    false)));
+
+    assertThat(updated).isTrue();
+    assertThat(cortex.getBranchSubjects(branch).getFirst().statements())
+        .as(
+            "the edit replaced the tagged literal rather than leaving it in place beside a second"
+                + " one — rebuilding it from its rdf:langString datatype alone would not match")
+        .singleElement()
+        .satisfies(
+            statement -> {
+              assertThat(statement.object()).isEqualTo("l'agente");
+              assertThat(statement.language()).isEqualTo("fr");
+            });
   }
 
   @Test
@@ -152,7 +239,9 @@ class BranchTests {
                     label.object(),
                     label.literal(),
                     label.datatype(),
-                    null)));
+                    label.language(),
+                    null,
+                    false)));
     assertThat(updated).isTrue();
 
     assertThat(cortex.getBranchSubjects(branch))
@@ -172,6 +261,24 @@ class BranchTests {
         .as("the provenance graph is not a branch pending review")
         .doesNotContain("provenance");
     assertThat(cortex.hasBranch("provenance")).isFalse();
+  }
+
+  @Test
+  void listBranchesShouldExcludeTheUsageGraph() {
+    // describe records a view, and views are buffered and written in batches, so the usage graph
+    // only comes into existence once a batch has flushed
+    cortex.approve(cortex.ingest(sampleTtl()).branch());
+    for (int view = 0; view < 25; view++) {
+      cortex.describe("example://kb/Task1");
+    }
+
+    assertThat(cortex.listBranches())
+        .as(
+            "view counts live in a reserved named graph of the assertions dataset like provenance"
+                + " does; listing it as a branch would offer a reviewer the chance to approve them"
+                + " into the knowledge graph")
+        .doesNotContain("usage");
+    assertThat(cortex.hasBranch("usage")).isFalse();
   }
 
   @Test
@@ -224,11 +331,12 @@ class BranchTests {
     BranchInfo info = cortex.getBranchInfo("provenance");
 
     assertThat(info.name()).isEqualTo("provenance");
-    assertThat(info.size())
+    assertThat(info.additions())
         .as(
             "getBranchInfo(\"provenance\") does not report the size of the entire provenance"
                 + " graph; the guard's missing value reports 0, as for a branch never staged")
         .isZero();
+    assertThat(info.retractions()).isZero();
     assertThat(info.started())
         .as("the guard's missing value reports no start time, as for an unknown branch")
         .isNull();

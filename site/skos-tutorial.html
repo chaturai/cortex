@@ -249,8 +249,9 @@ SELECT ?ancestor WHERE {
         first was asserted.</p>
       <p>Search works on the inferred labels too: <strong>Shapes Constraint</strong> finds
         <code>:shacl</code> through its <code>skos:altLabel</code>, and <strong>validating</strong>
-        finds it through the definition that became an <code>rdfs:comment</code>. Search is fuzzy, so
-        near-misses still land — see <a href="architecture.html#ranking">how search ranks</a>.</p>
+        finds it through the definition that became an <code>rdfs:comment</code>. SKOS labels and notes
+        are indexed directly too, and English stemming means word forms still land — see
+        <a href="architecture.html#ranking">how search ranks</a>.</p>
 
       <h2 id="rejections">What gets rejected</h2>
       <p>The point of the shapes is that these fail <em>before</em> a human is asked to review anything.

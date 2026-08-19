@@ -11,6 +11,7 @@ import ai.chatur.cortex.spring.CortexAutoConfiguration;
 import ai.chatur.cortex.spring.archive.ArchiveController;
 import ai.chatur.cortex.spring.branch.BranchController;
 import ai.chatur.cortex.spring.branch.BranchEditController;
+import ai.chatur.cortex.spring.graph.DescribeEditController;
 import ai.chatur.cortex.spring.graph.GraphController;
 import ai.chatur.cortex.spring.ontology.OntologyController;
 import ai.chatur.cortex.spring.query.SearchController;
@@ -64,6 +65,18 @@ public class CortexWebAutoConfiguration {
   @ConditionalOnMissingBean
   GraphController graphController(CortexOntology ontology, CortexQuery query) {
     return new GraphController(ontology, query);
+  }
+
+  /**
+   * Creates the JSON API controller staging a proposed edit to an approved resource for review.
+   *
+   * @param ingestor the ingestor role a proposed edit is staged through
+   * @return the describe edit controller
+   */
+  @Bean
+  @ConditionalOnMissingBean
+  DescribeEditController describeEditController(CortexIngestor ingestor) {
+    return new DescribeEditController(ingestor);
   }
 
   /**

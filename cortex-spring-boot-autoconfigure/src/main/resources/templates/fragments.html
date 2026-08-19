@@ -15,6 +15,11 @@
       class="class-link"
       th:href="@{/assertions(type=${ontClass.type.uri})}"
       th:text="${ontClass.type.prefix != null ? ontClass.type.prefix + ':' + ontClass.type.localName : ontClass.type.localName}"></a>
+    <span
+      class="class-count"
+      th:with="count=${counts != null and counts.containsKey(ontClass.type.uri) ? counts.get(ontClass.type.uri) : 0}"
+      th:text="${count}"
+      th:title="${count + ' instance' + (count == 1 ? '' : 's')}">0</span>
     <ul class="class-tree" th:if="${!ontClass.subClasses.isEmpty()}">
       <th:block th:each="subClass : ${ontClass.subClasses}">
         <li th:replace="~{fragments :: classNode(${subClass})}"></li>

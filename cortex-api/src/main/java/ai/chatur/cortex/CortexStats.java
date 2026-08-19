@@ -9,8 +9,10 @@ package ai.chatur.cortex;
  * @param pendingBranches the number of branches with staged assertions awaiting review
  * @param assertionTriples the total number of triples in the approved assertions, excluding
  *     provenance triples, which are kept in a separate graph
- * @param inferenceTriples the total number of triples visible to queries, including statements
- *     derived by inference
+ * @param inferredTriples the number of triples visible to queries that were derived by the reasoner
+ *     — the inference dataset less the approved assertions and less the ontology's own axioms,
+ *     which the reasoner is bound to as its schema and which are materialized alongside its
+ *     conclusions
  * @param ontologyClasses the number of classes defined in the ontology
  * @param shapes the number of root (targeted) SHACL shapes ingested assertions are validated
  *     against — shapes reachable only as a nested {@code sh:property} of another shape are not
@@ -21,7 +23,7 @@ public record CortexStats(
     long triplesAddedToday,
     long pendingBranches,
     long assertionTriples,
-    long inferenceTriples,
+    long inferredTriples,
     long ontologyClasses,
     long shapes,
     long rules) {}

@@ -40,8 +40,26 @@ public class GraphController {
   @GetMapping(value = "/describe", params = "uri")
   public String describeUri(@RequestParam("uri") String uri, Model model) {
     model.addAttribute("subject", uri);
+    model.addAttribute("name", getName(uri));
     model.addAttribute("statements", query.describe(uri));
     return "describe";
+  }
+
+  /**
+   * Returns the part of an IRI a reader would call the resource's name — everything after the last
+   * separator.
+   *
+   * <p>The page renames a resource by substituting this back into the IRI it came from, so it has
+   * to be a genuine suffix of {@code uri}: an abbreviation resolved against the ontology's prefixes
+   * would not be, and renaming would then rewrite the wrong part of the IRI.
+   *
+   * @param uri the resource's IRI
+   * @return the name, or the whole IRI if it carries no separator
+   */
+  String getName(String uri) {
+    int separator =
+        Math.max(uri.lastIndexOf('#'), Math.max(uri.lastIndexOf('/'), uri.lastIndexOf(':')));
+    return separator < 0 ? uri : uri.substring(separator + 1);
   }
 
   /**
@@ -51,8 +69,9 @@ public class GraphController {
    * @param type the URI of the ontology class whose instances to list, or {@code null} to render
    *     the class hierarchy
    * @param model when {@code type} is {@code null}, receives {@code classes} (the {@link
-   *     ai.chatur.cortex.OntologyClass} hierarchy); otherwise receives {@code type} and {@code
-   *     instances} (the matching {@link ai.chatur.cortex.Term}s)
+   *     ai.chatur.cortex.OntologyClass} hierarchy) and {@code counts} (the instance count keyed by
+   *     class URI); otherwise receives {@code type} and {@code instances} (the matching {@link
+   *     ai.chatur.cortex.Term}s)
    * @return the {@code classes} view name when {@code type} is {@code null}, otherwise the {@code
    *     instances} view name
    */
@@ -61,6 +80,7 @@ public class GraphController {
       @RequestParam(value = "type", required = false) String type, Model model) {
     if (type == null) {
       model.addAttribute("classes", ontology.getClassHierarchy());
+      model.addAttribute("counts", query.countInstances());
       return "classes";
     }
     model.addAttribute("type", type);

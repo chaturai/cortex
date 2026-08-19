@@ -31,7 +31,7 @@ import org.apache.jena.system.Txn;
  * unknown branch. Each method's {@code missing} value is chosen to match what it already returns
  * for a genuinely unknown branch, so "provenance" and "unknown" are indistinguishable to callers:
  * {@link #getBranch} returns the shared prefix header with no data, {@link #getBranchInfo} returns
- * the requested name with a {@code null} start time and a size of {@code 0}, and {@link
+ * the requested name with a {@code null} start time and both counts {@code 0}, and {@link
  * #getBranchSubjects} returns an empty list.
  */
 public class BranchQueryService {
@@ -81,8 +81,9 @@ public class BranchQueryService {
    * Summarizes a branch pending review from its staged provenance activity.
    *
    * @param branch the branch name
-   * @return the branch summary, or {@code (branch, null, 0)} if the branch does not exist or is the
-   *     reserved provenance graph name
+   * @return the branch summary, counting separately what the branch stages for addition and what it
+   *     stages for removal, or {@code (branch, null, 0, 0)} if the branch does not exist or is a
+   *     reserved graph name
    */
   public BranchInfo getBranchInfo(String branch) {
     return branchRepository.onBranch(
@@ -96,12 +97,15 @@ public class BranchQueryService {
                   Statement started = model.getProperty(namedModel, PROV.startedAtTime);
                   long activitySize =
                       Iter.count(model.listStatements(namedModel, null, (RDFNode) null));
+                  Model retractions =
+                      assertions.getNamedModel(CortexNamespace.getRetractions(namedModel));
                   return new BranchInfo(
                       branch,
                       started == null ? null : started.getLiteral().getLexicalForm(),
-                      model.size() - activitySize);
+                      model.size() - activitySize,
+                      retractions.size());
                 }),
-        new BranchInfo(branch, null, 0));
+        new BranchInfo(branch, null, 0, 0));
   }
 
   /**
@@ -109,8 +113,9 @@ public class BranchQueryService {
    * activity of the ingestion.
    *
    * @param branch the branch name
-   * @return the staged subjects sorted by name, each with its statements sorted by predicate, or an
-   *     empty list if the branch does not exist or is the reserved provenance graph name
+   * @return the staged subjects sorted by name, each with its statements sorted by predicate and
+   *     each statement flagged with whether the branch stages it for addition or for removal, or an
+   *     empty list if the branch does not exist or is a reserved graph name
    */
   public List<BranchSubject> getBranchSubjects(String branch) {
     return branchRepository.onBranch(
@@ -122,17 +127,12 @@ public class BranchQueryService {
                 () -> {
                   Map<Resource, List<BranchStatement>> subjects =
                       new TreeMap<>(Comparator.comparing(Resource::toString));
-                  assertions
-                      .getNamedModel(namedModel)
-                      .listStatements()
-                      .forEach(
-                          statement -> {
-                            Resource subject = statement.getSubject();
-                            if (namedModel.equals(subject)) return;
-                            subjects
-                                .computeIfAbsent(subject, key -> new ArrayList<>())
-                                .add(getBranchStatement(statement));
-                          });
+                  collect(subjects, assertions.getNamedModel(namedModel), namedModel, false);
+                  collect(
+                      subjects,
+                      assertions.getNamedModel(CortexNamespace.getRetractions(namedModel)),
+                      namedModel,
+                      true);
                   return subjects.entrySet().stream()
                       .map(
                           entry ->
@@ -152,20 +152,50 @@ public class BranchQueryService {
   }
 
   /**
+   * Groups the statements of one staged graph under their subjects, skipping the branch's own
+   * provenance activity.
+   *
+   * @param subjects receives the statements, keyed by subject
+   * @param model the staged graph to read
+   * @param activity the branch's own provenance activity resource, whose statements are skipped
+   * @param retracted whether {@code model} stages its statements for removal rather than addition
+   */
+  void collect(
+      Map<Resource, List<BranchStatement>> subjects,
+      Model model,
+      Resource activity,
+      boolean retracted) {
+    model
+        .listStatements()
+        .forEach(
+            statement -> {
+              Resource subject = statement.getSubject();
+              if (activity.equals(subject)) return;
+              subjects
+                  .computeIfAbsent(subject, key -> new ArrayList<>())
+                  .add(getBranchStatement(statement, retracted));
+            });
+  }
+
+  /**
    * Converts a staged statement into its display form, abbreviating the predicate against the
    * ontology.
    *
    * @param statement the staged statement
+   * @param retracted whether the branch stages the statement for removal rather than addition
    * @return the statement's display form
    */
-  BranchStatement getBranchStatement(Statement statement) {
+  BranchStatement getBranchStatement(Statement statement, boolean retracted) {
     RDFNode object = statement.getObject();
     boolean literal = object.isLiteral();
+    String language = literal ? object.asLiteral().getLanguage() : null;
     return new BranchStatement(
         ontModel.shortForm(statement.getPredicate().getURI()),
         statement.getPredicate().getURI(),
         literal ? object.asLiteral().getLexicalForm() : object.toString(),
         literal,
-        literal ? object.asLiteral().getDatatypeURI() : null);
+        literal ? object.asLiteral().getDatatypeURI() : null,
+        language == null || language.isEmpty() ? null : language,
+        retracted);
   }
 }

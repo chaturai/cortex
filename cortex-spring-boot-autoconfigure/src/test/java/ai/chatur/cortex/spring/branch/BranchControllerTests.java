@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ai.chatur.cortex.BranchInfo;
 import ai.chatur.cortex.BranchStatement;
 import ai.chatur.cortex.BranchSubject;
+import ai.chatur.cortex.spring.support.FakeBranches;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -21,7 +22,7 @@ class BranchControllerTests {
 
   @Test
   void listBranchesShouldRenderEveryPendingBranchWithItsSummary() {
-    BranchInfo info = new BranchInfo("branch-1", "2024-01-01T00:00:00Z", 3);
+    BranchInfo info = new BranchInfo("branch-1", "2024-01-01T00:00:00Z", 3, 0);
     FakeBranches branches =
         new FakeBranches(
             List.of("branch-1"), Map.of("branch-1", info), Map.of(), Set.of("branch-1"));
@@ -48,7 +49,9 @@ class BranchControllerTests {
                     "example://ontology#assignedTo",
                     "example://kb/Agent",
                     false,
-                    null)));
+                    null,
+                    null,
+                    false)));
     FakeBranches branches =
         new FakeBranches(
             List.of(), Map.of(), Map.of("branch-1", List.of(subject)), Set.of("branch-1"));

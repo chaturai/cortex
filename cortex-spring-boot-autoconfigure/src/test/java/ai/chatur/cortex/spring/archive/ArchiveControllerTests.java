@@ -3,8 +3,8 @@ package ai.chatur.cortex.spring.archive;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import ai.chatur.cortex.CortexArchive;
-import ai.chatur.cortex.CortexIngestor;
 import ai.chatur.cortex.IngestResult;
+import ai.chatur.cortex.spring.support.FakeIngestor;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
@@ -25,7 +25,8 @@ class ArchiveControllerTests {
 
   @Test
   void exportAssertionsShouldReturnTurtleWithAttachmentHeader() {
-    ArchiveController controller = new ArchiveController(() -> TTL, ttl -> null);
+    ArchiveController controller =
+        new ArchiveController(() -> TTL, new FakeIngestor(new IngestResult(true, null, null)));
 
     ResponseEntity<String> response = controller.exportAssertions();
 
@@ -47,7 +48,7 @@ class ArchiveControllerTests {
 
     RedirectView view = controller.importAssertions(upload("assertions.ttl", TTL), attributes);
 
-    assertThat(ingestor.ingested)
+    assertThat(ingestor.ingested())
         .as("the upload goes through ingest, so it is linted, validated, and staged for review")
         .isEqualTo(TTL);
     assertThat(view.getUrl()).isEqualTo("/branches");
@@ -94,7 +95,7 @@ class ArchiveControllerTests {
 
     RedirectView view = controller.importAssertions(upload("backup.trig", TTL), attributes);
 
-    assertThat(ingestor.ingested).as("a .trig upload never reaches ingest").isNull();
+    assertThat(ingestor.ingested()).as("a .trig upload never reaches ingest").isNull();
     assertThat(view.getUrl()).isEqualTo("/branches");
     assertThat(attributes.getFlashAttributes().get("importError"))
         .asString()
@@ -106,21 +107,5 @@ class ArchiveControllerTests {
   private static MockMultipartFile upload(String filename, String content) {
     return new MockMultipartFile(
         "file", filename, "text/turtle", content.getBytes(StandardCharsets.UTF_8));
-  }
-
-  /** Hand-rolled fake of {@link CortexIngestor}, recording what it was handed. */
-  private static final class FakeIngestor implements CortexIngestor {
-    private final IngestResult result;
-    private String ingested;
-
-    FakeIngestor(IngestResult result) {
-      this.result = result;
-    }
-
-    @Override
-    public IngestResult ingest(String ttl) {
-      this.ingested = ttl;
-      return result;
-    }
   }
 }

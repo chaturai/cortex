@@ -114,12 +114,14 @@
         entailed statements.</p>
 
       <h2 id="ranking">How search ranks</h2>
-      <p>Query text is tokenised by the <em>same analyser that indexed the literals</em>. That equality is
-        the whole game: Lucene resolves fuzzy terms without tokenising, so a query split by hand on
-        whitespace is looked up whole against an index the tokeniser already split differently, and
-        <code>note-pad</code> silently matches nothing while <code>note pad</code>
-        works. Labels and comments are separate fields, searched as separate branches so a name outranks
-        a description, and every term is required, so adding a word narrows rather than widens.</p>
+      <p>Query text is analysed by the <em>same <code>EnglishAnalyzer</code> that indexed the literals</em>
+        and handed to a Lucene query parser built with it. That equality is the whole game: the analyser
+        splits and stems both sides identically, so <code>note-pad</code> and <code>note pad</code> reach
+        the same index terms and <code>reports</code> finds <code>report</code>. Every human-readable
+        annotation — <code>rdfs:label</code>, <code>rdfs:comment</code>, and the SKOS labelling and note
+        properties — is indexed into a single <code>text</code> field, and every term is required, so
+        adding a word narrows rather than widens. Matching is exact after analysis: recall comes from
+        English stemming, not edit-distance fuzz.</p>
       <p>Textual relevance is then weighted by <strong>how often each resource is deliberately opened</strong> —
         opening it, never merely appearing in a result list, which would boost whatever already ranked
         highly and is self-fulfilling. Counts live in <code>cortex://usage</code>, a reserved named graph

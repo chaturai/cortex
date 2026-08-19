@@ -163,6 +163,15 @@ through `BranchRepository.onBranch`. It was previously enforced on writers only,
 branch accessor that reaches for `assertions.getNamedModel(...)` directly; Jena returns an empty
 model for a missing graph, so the bug is silent.
 
+**Anything that enumerates branches must filter with `CortexNamespace.isBranch`, not "everything but
+provenance".** The assertions dataset holds several reserved named graphs — `cortex://provenance`,
+`cortex://usage`, and each branch's `cortex://retract-<uuid>` — and only `cortex://branch-<uuid>` is
+a branch. `StatsService.countPendingBranches` once excluded only provenance, so the moment any
+resource was viewed the `cortex://usage` graph it created counted as a pending branch: the home page
+showed one more branch than `/branches` (which uses `BranchRepository.list`, correctly `isBranch`-
+filtered) would ever list, and clicking through showed nothing. `StatsTests.pendingBranchesShouldExcludeUsageGraph`
+pins it. `isBranch` is the one predicate both paths must share.
+
 **`ingest` and `approve` are each one write transaction.** They used to be three, which made the
 SHACL verdict and the novelty diff raceable, and could leave data merged with the branch still
 pending — re-approving then wrote a second `prov:Activity`, corrupting `triplesAddedToday` and
@@ -175,29 +184,43 @@ Three competing constructions previously produced contradictory encodings for th
 than Jena's `shortForm`, which returns the first `startsWith` hit over a `HashMap` and so isn't
 deterministic. Don't hand-roll a fourth.
 
-**Search query text must be tokenized by the index's own analyzer.** `QueryService.getFuzzyQuery`
-runs the user's input through `TextIndexFactory.analyzer()`, *not* `split("\\s+")`. Lucene's classic
-parser resolves fuzzy and other multi-term queries via `Analyzer.normalize()`, which lower-cases but
-does **not** tokenize — so a hand-split term is looked up whole against an index the tokenizer already
-split differently. That is why `note-pad` returned nothing while `note pad` worked:
-the index held `note` and `pad`, and at the default edit distance of 2 neither is within
-reach of the 8-character term. The analyzer is a single shared instance for exactly this reason; two
-instances that tokenize differently would break search silently rather than loudly. `SearchTests` pins
-the hyphen, slash, and comma cases. Note `_` and `.` legitimately do **not** split (UAX#29 joins
-letters across them, the rule that keeps `example.com` intact) — a literal written that way indexes as
-one token too, so query and index still agree.
+**The query is built by a classic `QueryParser` over the index's own analyzer.**
+`QueryService.buildQuery` escapes the user's input and hands it to a
+`org.apache.lucene.queryparser.classic.QueryParser` constructed with `TextIndexFactory.analyzer()`
+and an implicit `AND`, then renders the parsed query back to a default-field string for `text:query`.
+Two things ride on this. First, escaping the whole input neutralizes Lucene query syntax — a leading
+`-` would otherwise read as a prohibition — so user text is treated as literal terms. Second, the
+parser tokenizes with the *same* analyzer the index used, so a run like `note-pad` splits into `note`
+and `pad` (a phrase query) and matches the same terms the index holds; hand-splitting the query
+instead would look a term up whole against tokens the index had already split, matching nothing. The
+analyzer is a single shared instance for exactly this reason; two instances that tokenize differently
+would break search silently rather than loudly. `SearchTests` pins the hyphen, slash, and comma
+cases. Note `_` and `.` legitimately do **not** split (UAX#29 joins letters across them, the rule that
+keeps `example.com` intact) — a literal written that way indexes as one token too, so query and index
+still agree.
 
-**Fuzziness is graded by token length, never bare `~`.** A bare `~` is edit distance 2, which on a
-three-character token like `pad` reaches most short terms in the index. Tokens ≤ 3 characters are
-matched exactly, 4–6 allow one edit, longer ones two.
+**Matching is exact after analysis — there is no edit-distance fuzz.** Recall comes from
+`EnglishAnalyzer` stemming (`reports` and `report` share a stem), not from `~`. This replaced a
+token-length-graded fuzziness scheme; a bare `~` is edit distance 2, which on a three-character token
+like `pad` reaches most short terms in the index, and grading it by length was fragile. Every term is
+required (`AND`), so adding a word narrows the results. `SearchTests` pins that `pad` reaches only
+`note-pad`.
 
-**`text:query` must name the property to make `?match` usable.** The index resolves the property to
-its field and returns *that* field's stored literal. A field-qualified query string (`comment:(...)`)
-steers matching only — retrieval stays pointed at the default field, so every comment hit reports a
-**null** match while still appearing in results. `SEARCH_QUERY` is therefore a UNION of a
-`rdfs:label` branch and a `rdfs:comment` branch, which is also where the label boost is applied
-(`BIND(?rawScore * 3 AS ?score)`) rather than in the query string. `SearchTests` pins both the
-non-null comment match and the label-outranks-comment ordering.
+**Search is one field, so `?match` is always the matching literal.** `rdfs:label`, `rdfs:comment`,
+and the SKOS labelling/note properties are all indexed into a single default `text` field
+(`TextIndexFactory`). `SEARCH_QUERY` is therefore a single `text:query (?text N)` — the `('string'
+limit)` form, which leaves retrieval on the default field, so every hit reports its stored literal
+rather than a **null** match. There is no `rdfs:label`/`rdfs:comment` branch split and **no label
+boost**: a single field cannot tell a name match from a description match, so ranking is Lucene
+relevance plus the popularity weight only. `SearchTests` pins the non-null comment match; the old
+label-outranks-comment guarantee is gone.
+
+**The entity map deliberately omits `graphField`.** A `langField` is set (harmless — it only enables
+language-filtered queries), but configuring a `graphField` scopes `text:query` to the graph the
+query runs in, and the search runs against the inference dataset's default graph, so with a graph
+field set **every search returns nothing** — no error, just empty results. `SearchTests` is the
+regression net: it went all-red the moment `setGraphField` was added. Don't add it back to "match" an
+example `EntityMap` that includes it.
 
 **The index holds one document per literal, so search de-duplicates by subject.** A resource matching
 on both its label and its comment produces two Lucene documents and therefore two solutions.
@@ -235,9 +258,34 @@ timestamp means "current", not the epoch: counts written before decay existed wo
 wiped on first read. `CortexBuilder.DEFAULT_VIEW_HALF_LIFE` and the property default must stay equal —
 the two assembly paths are required to produce identical graphs.
 
-**`rdf:type` is deliberately not indexed.** It was, into the same field as `rdfs:label`, which mixed
-class-URI tokens into the same relevance space as human-readable prose and gave every typed resource
-the same filler terms.
+**Not everything without provenance is inferred.** The reasoner is bound to the ontology as its
+schema (`bindSchema(ontModel)` in `CortexBuilder`/`CortexAutoConfiguration`), so the ontology's own
+axioms are materialized into the inference dataset alongside the reasoner's conclusions and show up
+in `describe`. They carry no provenance, and `describe` used to render exactly that absence as
+"inferred", labelling every `rdfs:domain`/`owl:Class` declaration a derivation. `ProvenancedStatement`
+therefore carries a `StatementOrigin`: `ASSERTED` when provenance exists, else `ONTOLOGY` when
+`ontModel` contains the statement verbatim, else `INFERRED`. Don't reintroduce a `created == null`
+test as a stand-in for "inferred" — `describe.html` keys its badge off the origin. `QueryTests` pins
+all three. The home page's "Inferred triples" stat had the same bug from the other direction: it was
+the size of the whole inference dataset, assertions and ontology axioms included, so it could only
+ever be larger than the assertion count beside it. `StatsService.countInferredTriples` subtracts
+both, and `countOntologyTriples` skips axioms that were *also* approved so they are not subtracted
+twice. It is clamped at zero because `approve` merges and extends the closure in two steps, and a
+snapshot between them sees assertions the closure has not caught up with. `StatsTests` pins the
+count and the empty-graph zero.
+
+**`rdf:type` is deliberately not indexed.** It was, into the same `text` field as the labels and
+comments, which mixed class-URI tokens into the same relevance space as human-readable prose and gave
+every typed resource the same filler terms.
+
+**`QueryService.countInstances` counts over the *inference* dataset, and omits zero.** The
+`/assertions` class tree shows an instance count per class (`GraphController` passes `counts` to the
+`classNode` fragment). Counting over the closure — not the approved assertions — is deliberate: a
+resource typed only by a subclass, or only through a `rdfs:domain`/`range` rule, still counts towards
+the classes the reasoner derives for it, matching what `/assertions?type=` lists. A class with no
+instances is **absent** from the map, not mapped to `0`; the template defaults a missing key to `0`,
+so don't "fix" the query to emit zeros. `QueryTests.countInstancesShouldCountInstancesOfEachClassIncludingInferredTypes`
+pins the inference behaviour.
 
 **`cortex.persistent` means assertions only.** The inference closure and the Lucene text index are
 *always* in-memory and rebuilt at startup — they're a derived cache. There is no `indexLocation`.

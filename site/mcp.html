@@ -63,7 +63,7 @@ cortex:
             <tr><td><strong>Query</strong></td><td><code>sparql</code></td><td>Runs a SPARQL <code>SELECT</code> (including inferred statements); returns a text table. Read-only.</td></tr>
             <tr><td><strong>Ask</strong></td><td><code>sparql</code></td><td>Answers a SPARQL <code>ASK</code> — <code>true</code>/<code>false</code>. Read-only.</td></tr>
             <tr><td><strong>Describe</strong></td><td><code>sparql</code></td><td>Runs a SPARQL <code>DESCRIBE</code>; returns Turtle. Read-only.</td></tr>
-            <tr><td><strong>Search</strong></td><td><code>text</code></td><td>Fuzzy full-text search over <code>rdfs:label</code> and <code>rdfs:comment</code>, tolerant of typos, ranked by relevance and by how often each resource is opened. Read-only.</td></tr>
+            <tr><td><strong>Search</strong></td><td><code>text</code></td><td>Full-text search over <code>rdfs:label</code>, <code>rdfs:comment</code>, and the SKOS labelling and note properties, analysed with <code>EnglishAnalyzer</code> so word forms match through stemming, ranked by relevance and by how often each resource is opened. Read-only.</td></tr>
           </tbody>
         </table>
       </div>

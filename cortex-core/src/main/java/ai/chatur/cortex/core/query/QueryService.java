@@ -2,6 +2,7 @@ package ai.chatur.cortex.core.query;
 
 import ai.chatur.cortex.ProvenancedStatement;
 import ai.chatur.cortex.SearchResult;
+import ai.chatur.cortex.StatementOrigin;
 import ai.chatur.cortex.Term;
 import ai.chatur.cortex.core.CortexNamespace;
 import ai.chatur.cortex.core.Terms;
@@ -9,15 +10,12 @@ import ai.chatur.cortex.core.jena.Rdf;
 import ai.chatur.cortex.core.jena.Sparql;
 import ai.chatur.cortex.core.store.TextIndexFactory;
 import ai.chatur.cortex.core.usage.UsageService;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.apache.jena.ontapi.model.OntClass;
 import org.apache.jena.ontapi.model.OntModel;
 import org.apache.jena.query.Dataset;
@@ -31,9 +29,8 @@ import org.apache.jena.rdf.model.RDFNode;
 import org.apache.jena.rdf.model.Resource;
 import org.apache.jena.rdf.model.ResourceFactory;
 import org.apache.jena.riot.Lang;
-import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.queryparser.classic.QueryParserBase;
+import org.apache.lucene.queryparser.classic.ParseException;
+import org.apache.lucene.queryparser.classic.QueryParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,15 +46,6 @@ public class QueryService {
 
   private static final Logger log = LoggerFactory.getLogger(QueryService.class);
 
-  /** Tokens this short are matched exactly — two edits would reach most of the index. */
-  private static final int SHORT_TOKEN = 3;
-
-  /** Tokens up to this length allow one edit; longer ones allow two. */
-  private static final int MEDIUM_TOKEN = 6;
-
-  /** How much more a match in a resource's name counts than one in its description. */
-  private static final int LABEL_BOOST = 3;
-
   /**
    * The most Lucene documents a search may retrieve.
    *
@@ -68,12 +56,14 @@ public class QueryService {
   private static final int CANDIDATE_LIMIT = 200;
 
   /**
-   * Searches labels and comments as separate branches, weighting names above descriptions.
+   * Searches the single {@code text} field of the index, ranked by Lucene relevance.
    *
-   * <p>Each branch names the property it searches. That is what makes {@code ?match} usable: the
-   * text index resolves the property to its field and returns <em>that</em> field's stored literal,
-   * whereas a field-qualified query string steers matching only and leaves retrieval pointed at the
-   * default field, yielding a null match for every comment hit.
+   * <p>Every annotation — labels, comments, and the SKOS notes — is indexed into one {@code text}
+   * field, so the query does not distinguish a name match from a description match. The property
+   * named in the {@code text:query} list only selects the field to search: it resolves to {@code
+   * text}, and because that field holds the text of every mapped predicate, naming {@code
+   * rdfs:label} searches all of them. Retrieval stays on that field, so {@code ?match} is the
+   * matching literal for every hit. Popularity re-weights the results afterwards.
    */
   private static final Query SEARCH_QUERY =
       QueryFactory.create(
@@ -82,20 +72,12 @@ public class QueryService {
           PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
           SELECT ?subject ?score ?match
           WHERE {
-            {
-              (?subject ?rawScore ?match) text:query (rdfs:label ?text %d) .
-              BIND(?rawScore * %d AS ?score)
-            }
-            UNION
-            {
-              (?subject ?rawScore ?match) text:query (rdfs:comment ?text %d) .
-              BIND(?rawScore AS ?score)
-            }
+            (?subject ?score ?match) text:query (rdfs:label ?text %d) .
           }
           ORDER BY DESC(?score)
           LIMIT %d
           """
-              .formatted(CANDIDATE_LIMIT, LABEL_BOOST, CANDIDATE_LIMIT, CANDIDATE_LIMIT));
+              .formatted(CANDIDATE_LIMIT, CANDIDATE_LIMIT));
 
   private final Dataset inferences;
   private final Dataset assertions;
@@ -135,6 +117,34 @@ public class QueryService {
               log.warn("No instances for unknown ontology class {}", type);
               return List.of();
             });
+  }
+
+  private static final Query INSTANCE_COUNTS =
+      QueryFactory.create(
+          """
+          SELECT ?type (COUNT(DISTINCT ?instance) AS ?count)
+          WHERE { ?instance a ?type }
+          GROUP BY ?type
+          """);
+
+  /**
+   * Counts the instances of every class over the inference dataset, so a resource typed only by a
+   * subclass still counts towards the superclasses the reasoner derives for it.
+   *
+   * @return the number of distinct instances keyed by class URI; classes with no instances are
+   *     absent
+   */
+  public Map<String, Long> countInstances() {
+    Map<String, Long> counts = new HashMap<>();
+    Sparql.on(inferences, INSTANCE_COUNTS)
+        .forEachSolution(
+            solution -> {
+              Resource type = solution.getResource("type");
+              if (type != null && type.isURIResource()) {
+                counts.put(type.getURI(), solution.getLiteral("count").getLong());
+              }
+            });
+    return counts;
   }
 
   List<Term> listInstances(OntClass ontClass) {
@@ -178,13 +188,18 @@ public class QueryService {
           """);
 
   /**
-   * Returns everything known about a resource, with the creation timestamp of each statement where
-   * provenance was recorded.
+   * Returns everything known about a resource, with the {@link StatementOrigin origin} of each
+   * statement and the creation timestamp of those where provenance was recorded.
    *
    * <p>The statements come from the inference dataset; their creation timestamps come from the
    * {@link CortexNamespace#PROVENANCE provenance graph} of the assertions dataset. Each statement
    * is returned once: statements carrying several provenance records — for example because they
    * were asserted by more than one ingestion — report their earliest creation timestamp.
+   *
+   * <p>The inference dataset holds more than the reasoner's conclusions: the reasoner is bound to
+   * the ontology as its schema, so the ontology's own axioms are materialized alongside them. Those
+   * have no provenance either, so absence of a timestamp alone does not make a statement inferred —
+   * the origin distinguishes them by looking the statement up in the ontology.
    *
    * @param id the identifier of the resource within the Cortex namespace, or a full URI
    * @return the statements about the resource, sorted by predicate
@@ -202,13 +217,29 @@ public class QueryService {
             solution -> {
               RDFNode predicate = solution.get("predicate");
               RDFNode object = solution.get("object");
+              String timestamp = created.get(new StatementKey(predicate, object));
+              boolean literal = object.isLiteral();
+              String language = literal ? object.asLiteral().getLanguage() : null;
               statements.add(
                   new ProvenancedStatement(
                       Terms.of(predicate, ontModel),
                       Terms.of(object, ontModel),
-                      created.get(new StatementKey(predicate, object))));
+                      timestamp,
+                      getOrigin(subject, predicate, object, timestamp),
+                      literal,
+                      literal ? object.asLiteral().getDatatypeURI() : null,
+                      language == null || language.isEmpty() ? null : language));
             });
     return statements;
+  }
+
+  StatementOrigin getOrigin(Resource subject, RDFNode predicate, RDFNode object, String created) {
+    if (created != null) return StatementOrigin.ASSERTED;
+    if (predicate.isURIResource()
+        && ontModel.contains(
+            subject, ResourceFactory.createProperty(predicate.asResource().getURI()), object))
+      return StatementOrigin.ONTOLOGY;
+    return StatementOrigin.INFERRED;
   }
 
   Map<StatementKey, String> getCreated(Resource subject) {
@@ -254,16 +285,16 @@ public class QueryService {
   }
 
   /**
-   * Finds resources by fuzzy full-text search over their labels.
+   * Finds resources by full-text search over their labels, comments, and SKOS annotations.
    *
-   * <p>Each term of the input is matched approximately, so small typos and spelling variations
-   * still find their target.
+   * <p>Every term of the input is required and matched exactly after analysis, so recall comes from
+   * the analyzer's stemming ({@code reports} finds {@code report}) rather than edit-distance fuzz.
    *
    * @param text the text to search for
    * @return the matches with their relevance scores, formatted as text and ranked best first
    */
   public String search(String text) {
-    Literal literal = ResourceFactory.createPlainLiteral(getFuzzyQuery(text));
+    Literal literal = ResourceFactory.createPlainLiteral(buildQuery(text));
     return Sparql.on(inferences, SEARCH_QUERY)
         .bind("text", literal)
         .execute(queryExecution -> ResultSetFormatter.asText(queryExecution.execSelect()));
@@ -272,9 +303,9 @@ public class QueryService {
   /**
    * Searches the full-text index and returns the matching subjects.
    *
-   * <p>Longer terms are matched approximately, so small typos and spelling variations still find
-   * their target. Every term must occur in the same indexed literal, so adding a word narrows the
-   * results.
+   * <p>Every term is required and must occur in the same indexed literal, so adding a word narrows
+   * the results. Terms are matched exactly after analysis; the analyzer's stemming is what lets
+   * spelling variations of the same word still find their target.
    *
    * <p>The index holds one document per literal, so a resource matching on both its label and its
    * comment produces several hits; each resource is reported once, keeping its best-scoring match.
@@ -283,7 +314,7 @@ public class QueryService {
    * @return the matching subjects ranked best first, empty if nothing matches
    */
   public List<SearchResult> searchSubjects(String text) {
-    Literal literal = ResourceFactory.createPlainLiteral(getFuzzyQuery(text));
+    Literal literal = ResourceFactory.createPlainLiteral(buildQuery(text));
     // insertion-ordered, and the query is already sorted by descending score, so keeping the first
     // hit per subject both de-duplicates and preserves the ranking
     Map<String, SearchResult> best = new LinkedHashMap<>();
@@ -335,65 +366,30 @@ public class QueryService {
   /**
    * Builds the Lucene query string for the given user input.
    *
-   * <p>The input is tokenized with {@link TextIndexFactory#analyzer() the index's own analyzer}
-   * rather than split on whitespace. Lucene's classic query parser resolves fuzzy terms through
-   * {@code Analyzer.normalize}, which lower-cases but does not tokenize, so a hand-split term such
-   * as {@code note-pad} would be looked up whole against an index whose tokenizer had already split
-   * it into {@code note} and {@code pad} — and match nothing.
-   *
-   * <p>Every token is required, so adding a word narrows the result set rather than widening it.
-   */
-  String getFuzzyQuery(String text) {
-    List<String> tokens = analyze(text);
-    if (tokens.isEmpty()) {
-      return "";
-    }
-    // every token is required, so all of them must occur in the one literal a document holds; the
-    // query runs against the label and comment fields separately, either of which may satisfy it
-    return tokens.stream()
-        .map(token -> "+" + QueryParserBase.escape(token) + fuzziness(token))
-        .collect(Collectors.joining(" "));
-  }
-
-  /**
-   * Tokenizes the input exactly as the indexer tokenized the literals being searched.
+   * <p>The input is escaped and parsed by a classic {@link QueryParser} configured with {@link
+   * TextIndexFactory#analyzer() the index's own analyzer} and an implicit {@code AND}, so every
+   * term is required and adding a word narrows the results. Escaping neutralizes Lucene query
+   * syntax — notably a leading {@code -}, which would otherwise read as a prohibition — and the
+   * analyzer inside the parser tokenizes a run like {@code note-pad} into a {@code "note pad"}
+   * phrase, so the query matches the same index terms regardless of the separator the user typed.
+   * The parsed query is rendered back to a default-field string for the {@code text:query} property
+   * function to run.
    *
    * @param text the raw user input
-   * @return the analyzed tokens, empty if the input holds nothing searchable
+   * @return the query string, empty if the input analyzes to nothing searchable
    */
-  private static List<String> analyze(String text) {
-    List<String> tokens = new ArrayList<>();
-    try (TokenStream stream =
-        TextIndexFactory.analyzer().tokenStream(TextIndexFactory.LABEL_FIELD, text)) {
-      CharTermAttribute term = stream.addAttribute(CharTermAttribute.class);
-      stream.reset();
-      while (stream.incrementToken()) {
-        tokens.add(term.toString());
-      }
-      stream.end();
-    } catch (IOException e) {
-      // tokenizing an in-memory string cannot perform I/O; the checked exception is an artifact of
-      // Lucene's Reader-based API
-      throw new UncheckedIOException("Failed to analyze search text", e);
-    }
-    return tokens;
-  }
-
-  /**
-   * Grades edit distance by token length.
-   *
-   * <p>A bare {@code ~} is edit distance 2, which on a short token matches a large share of the
-   * index — {@code pad} would reach every three-to-five character term. Short tokens are therefore
-   * matched exactly, and only longer ones, where two edits are a small fraction of the token, get
-   * the full allowance.
-   *
-   * @param token the analyzed token
-   * @return the fuzziness suffix to append, empty for tokens too short to match approximately
-   */
-  private static String fuzziness(String token) {
-    if (token.length() <= SHORT_TOKEN) {
+  String buildQuery(String text) {
+    if (text == null || text.isBlank()) {
       return "";
     }
-    return token.length() <= MEDIUM_TOKEN ? "~1" : "~2";
+    QueryParser parser = new QueryParser(TextIndexFactory.TEXT_FIELD, TextIndexFactory.analyzer());
+    parser.setDefaultOperator(QueryParser.Operator.AND);
+    try {
+      return parser.parse(QueryParser.escape(text)).toString(TextIndexFactory.TEXT_FIELD);
+    } catch (ParseException e) {
+      // the input is fully escaped before parsing, so it holds no query syntax that can fail to
+      // parse; the checked exception is an artifact of the parser API
+      throw new IllegalStateException("Failed to parse search text", e);
+    }
   }
 }

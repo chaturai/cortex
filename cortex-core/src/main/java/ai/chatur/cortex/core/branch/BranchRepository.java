@@ -12,8 +12,14 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Looks up the branches pending review — named graphs within the assertions dataset — guarding
- * every access against the {@link CortexNamespace#PROVENANCE provenance graph}, which is never a
- * branch even though it is a named graph of the same dataset.
+ * every access against the reserved graphs, which are never branches even though they are named
+ * graphs of the same dataset.
+ *
+ * <p>A branch is recognised by its name alone, through {@link CortexNamespace#isBranch}: only
+ * {@code cortex://branch-<uuid>} is one. That excludes {@link CortexNamespace#PROVENANCE}, {@link
+ * CortexNamespace#USAGE}, and the {@link CortexNamespace#getRetractions retraction graph} of every
+ * branch — each of which would otherwise be listed as a branch of its own and could be approved
+ * into the default graph, merging provenance bookkeeping or view counts into the knowledge graph.
  */
 public class BranchRepository {
 
@@ -34,8 +40,8 @@ public class BranchRepository {
    * Applies the action to the branch graph if a branch with that name is pending, and returns the
    * missing value otherwise.
    *
-   * <p>The {@link CortexNamespace#PROVENANCE provenance graph} is never a branch: a branch named
-   * {@code provenance} is always reported missing, whether or not the provenance graph exists.
+   * <p>A reserved graph is never a branch: a branch named {@code provenance} or {@code usage} is
+   * always reported missing, whether or not that graph exists.
    *
    * @param branch the branch name
    * @param operation a short description of the caller's operation, used only in the warning logged
@@ -57,7 +63,8 @@ public class BranchRepository {
   /**
    * Returns the names of all branches pending review.
    *
-   * <p>The {@link CortexNamespace#PROVENANCE provenance graph} is not a branch and is never listed.
+   * <p>The reserved graphs — provenance, usage, and the retraction graphs of the branches
+   * themselves — are not branches and are never listed.
    *
    * @return the branch names, empty if nothing is pending
    */
@@ -70,7 +77,7 @@ public class BranchRepository {
                 .listModelNames()
                 .forEachRemaining(
                     node -> {
-                      if (CortexNamespace.PROVENANCE.equals(node)) return;
+                      if (!CortexNamespace.isBranch(node)) return;
                       branches.add(node.getLocalName());
                     }));
     return branches;
@@ -79,17 +86,17 @@ public class BranchRepository {
   /**
    * Reports whether a branch with the given name is pending review.
    *
-   * <p>The {@link CortexNamespace#PROVENANCE provenance graph} is not a branch: it is never
-   * reported here, which also shields it from every caller that checks this method before mutating
-   * or reading a branch — every write in {@code core.branch} and every reader in {@link
-   * BranchQueryService} routes through {@link #onBranch}, which calls this method first.
+   * <p>A reserved graph is not a branch: it is never reported here, which also shields it from
+   * every caller that checks this method before mutating or reading a branch — every write in
+   * {@code core.branch} and every reader in {@link BranchQueryService} routes through {@link
+   * #onBranch}, which calls this method first.
    *
    * @param branch the branch name
    * @return {@code true} if the branch exists
    */
   public boolean exists(String branch) {
     Resource namedModel = CortexNamespace.getResource(branch);
-    if (CortexNamespace.PROVENANCE.equals(namedModel)) return false;
+    if (!CortexNamespace.isBranch(namedModel)) return false;
     return Txn.calculateRead(assertions, () -> assertions.containsNamedModel(namedModel));
   }
 }

@@ -255,6 +255,11 @@ main {
   text-transform: uppercase;
 }
 
+.badge-retractions {
+  color: var(--red);
+  background: rgba(220, 50, 47, 0.2);
+}
+
 /* Branch review */
 .branch-header {
   display: flex;
@@ -333,6 +338,52 @@ main {
   color: var(--yellow);
 }
 
+/* A statement the branch stages for removal: already struck through before any reviewer edit,
+   because approving the branch is what deletes it. Its delete button cancels the removal. */
+.statement-retracted .statement-predicate,
+.statement-retracted .statement-object {
+  text-decoration: line-through;
+  color: var(--red);
+}
+
+.statement-retracted .statement-origin-badge {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.statement-retracted.deleted .statement-predicate,
+.statement-retracted.deleted .statement-object {
+  text-decoration: none;
+  color: var(--base01);
+}
+
+/* A row being added by the current edit, and the placeholder its empty cells show. */
+.statement-added .statement-predicate,
+.statement-added .statement-object {
+  color: var(--green);
+}
+
+.statement-added [contenteditable]:empty::before {
+  content: attr(data-placeholder);
+  color: var(--base01);
+}
+
+.statement-follow {
+  color: var(--base01);
+  text-decoration: none;
+  padding: 0 0.25rem;
+  opacity: 0;
+  transition: opacity 250ms ease;
+}
+
+.statement-item:hover .statement-follow {
+  opacity: 1;
+}
+
+.statement-follow:hover {
+  color: var(--blue);
+}
+
 .action-form {
   margin: 0;
 }
@@ -393,6 +444,15 @@ main {
   box-shadow: inset 0 0 10px rgba(181, 137, 0, 0.2);
 }
 
+.btn-add {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.btn-add:hover {
+  box-shadow: inset 0 0 10px rgba(133, 153, 0, 0.2);
+}
+
 /* Class hierarchy */
 .classes-container,
 .instances-container {
@@ -426,6 +486,16 @@ main {
 
 .class-link:hover {
   color: var(--cyan);
+}
+
+.class-count {
+  margin-left: 0.5rem;
+  font-size: 0.625rem;
+  font-weight: 500;
+  padding: 0.125rem 0.375rem;
+  border-radius: 2px;
+  color: var(--base01);
+  background: var(--base02);
 }
 
 /* Instances */
@@ -500,19 +570,22 @@ main {
   color: var(--base0);
 }
 
-.statement-inferred {
+.statement-inferred,
+.statement-ontology {
   color: var(--base01);
 }
 
-.statement-inferred .statement-predicate {
+.statement-inferred .statement-predicate,
+.statement-ontology .statement-predicate {
   color: var(--base01);
 }
 
-.statement-inferred .statement-object {
+.statement-inferred .statement-object,
+.statement-ontology .statement-object {
   color: var(--base01);
 }
 
-.statement-inferred-badge {
+.statement-origin-badge {
   margin-left: auto;
   font-size: 0.625rem;
   color: var(--cyan);
@@ -522,6 +595,11 @@ main {
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+.statement-ontology .statement-origin-badge {
+  color: var(--violet);
+  background: rgba(108, 113, 196, 0.2);
 }
 
 .statements-empty {

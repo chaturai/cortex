@@ -105,6 +105,11 @@ class QueryToolsTests {
     }
 
     @Override
+    public java.util.Map<String, Long> countInstances() {
+      throw new UnsupportedOperationException("not exercised by QueryTools");
+    }
+
+    @Override
     public List<ProvenancedStatement> describe(String id) {
       throw new UnsupportedOperationException("not exercised by QueryTools");
     }

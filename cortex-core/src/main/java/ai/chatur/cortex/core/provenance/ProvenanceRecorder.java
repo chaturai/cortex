@@ -7,13 +7,14 @@ import org.apache.jena.rdf.model.Model;
 import org.apache.jena.rdf.model.ModelFactory;
 import org.apache.jena.rdf.model.RDFNode;
 import org.apache.jena.rdf.model.Resource;
+import org.apache.jena.rdf.model.ResourceFactory;
 import org.apache.jena.vocabulary.RDF;
 import org.apache.jena.vocabulary.RDFS;
 
 /**
  * Builds and closes the {@link PROV#Activity provenance activity} that records an ingestion, from
- * staging through approval — the only place in the codebase with knowledge of the PROV-O vocabulary
- * used for this bookkeeping.
+ * staging through approval, and clears the provenance of statements an approval retracts — the only
+ * place in the codebase with knowledge of the PROV-O vocabulary used for this bookkeeping.
  */
 public class ProvenanceRecorder {
 
@@ -64,5 +65,35 @@ public class ProvenanceRecorder {
               provenance.add(reifier, PROV.wasGeneratedBy, activity);
             });
     return provenance;
+  }
+
+  /**
+   * Returns the provenance to remove when statements are retracted from the knowledge graph: every
+   * triple of the reifier of each retracted statement.
+   *
+   * <p>Leaving them behind would not just accumulate orphans. {@link
+   * ai.chatur.cortex.core.query.QueryService#describe describe} reports a statement's creation time
+   * as the {@code MIN} of its activities' end times, so a statement that is retracted and later
+   * asserted again would report the original creation time and hide that it ever went away.
+   *
+   * @param retracted the statements being removed from the knowledge graph
+   * @param provenance the provenance graph to look the reifiers up in
+   * @return the triples to remove from the provenance graph
+   */
+  public Model getStaleProvenance(Model retracted, Model provenance) {
+    Model stale = ModelFactory.createDefaultModel();
+    retracted
+        .listStatements()
+        .forEach(
+            statement ->
+                provenance
+                    .listResourcesWithProperty(
+                        RDF.reifies, ResourceFactory.createStatementTerm(statement))
+                    .forEach(
+                        reifier ->
+                            provenance
+                                .listStatements(reifier, null, (RDFNode) null)
+                                .forEach(stale::add)));
+    return stale;
   }
 }

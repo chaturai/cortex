@@ -168,8 +168,8 @@ cortex:
             <tr><td><code>/</code></td><td>Home — statistics: triples added today, pending branches, asserted and inferred triples, ontology classes, shapes, and rules.</td></tr>
             <tr><td><code>/ontology</code></td><td>The ontology in Turtle syntax.</td></tr>
             <tr><td><code>/assertions</code></td><td>The class hierarchy; <code>?type={class}</code> lists a class's instances, including inferred ones.</td></tr>
-            <tr><td><code>/describe?uri={uri}</code></td><td>Everything known about a resource, with provenance timestamps.</td></tr>
-            <tr><td><code>/search?q={text}</code></td><td>Fuzzy full-text search results.</td></tr>
+            <tr><td><code>/describe?uri={uri}</code></td><td>Everything known about a resource, with provenance timestamps, and an origin badge — <em>ontology</em> or <em>inferred</em> — on the statements that have none.</td></tr>
+            <tr><td><code>/search?q={text}</code></td><td>Full-text search results.</td></tr>
             <tr><td><code>/branches</code></td><td>Branches staged by ingestion, awaiting review.</td></tr>
             <tr><td><code>/branches/{branch}</code></td><td>Staged assertions grouped by subject; edit, rename, <strong>Approve</strong>, or <strong>Reject</strong>.</td></tr>
             <tr><td><code>/export</code></td><td>Downloads the approved assertions as a dated Turtle file (instance data only).</td></tr>

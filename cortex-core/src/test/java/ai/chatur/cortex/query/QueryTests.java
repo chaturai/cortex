@@ -5,9 +5,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import ai.chatur.cortex.Cortex;
 import ai.chatur.cortex.IngestResult;
 import ai.chatur.cortex.ProvenancedStatement;
+import ai.chatur.cortex.StatementOrigin;
 import ai.chatur.cortex.Term;
 import ai.chatur.cortex.support.CortexFixtures;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -91,6 +93,33 @@ class QueryTests {
   }
 
   @Test
+  void countInstancesShouldCountInstancesOfEachClassIncludingInferredTypes() {
+    // the two tasks are typed only by inference — the domain of :assignedTo is :Task, its range
+    // :Agent — so this also pins that countInstances counts over the inference closure
+    cortex.approve(
+        cortex
+            .ingest(
+                """
+                @prefix : <example://ontology#> .
+                @prefix kb: <example://kb/> .
+
+                kb:CountTaskA :assignedTo kb:CountAgentA .
+                kb:CountTaskB :assignedTo kb:CountAgentA .
+                """)
+            .branch());
+
+    Map<String, Long> counts = cortex.countInstances();
+
+    assertThat(counts)
+        .as("countInstances counts the instances of each class, inferred types included")
+        .containsEntry("example://ontology#Task", 2L)
+        .containsEntry("example://ontology#Agent", 1L);
+    assertThat(counts)
+        .as("a class with no instances is absent rather than mapped to zero")
+        .doesNotContainKey("example://ontology#NonexistentClass");
+  }
+
+  @Test
   void getInstancesShouldEncodePrefixedIriAsPrefixAndLocalName() {
     cortex.approve(
         cortex
@@ -152,6 +181,67 @@ class QueryTests {
             "describe on the SAME unprefixed IRI agrees with getInstances above — both now share"
                 + " the same Terms.of construction, which is the contradiction Phase 2b fixed")
         .isEqualTo(viaGetInstances);
+  }
+
+  @Test
+  void describeShouldDistinguishAssertedOntologyAndInferredStatements() {
+    cortex.approve(
+        cortex
+            .ingest(
+                """
+                @prefix : <example://ontology#> .
+                @prefix kb: <example://kb/> .
+
+                kb:OriginTask :assignedTo kb:OriginAgent .
+                """)
+            .branch());
+
+    List<ProvenancedStatement> statements = cortex.describe("example://kb/OriginTask");
+
+    assertThat(originOf(statements, "example://ontology#assignedTo"))
+        .as("an approved statement carries provenance")
+        .isEqualTo(StatementOrigin.ASSERTED);
+    assertThat(originOf(statements, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"))
+        .as("rdf:type :Task was derived by the domain rule, not asserted")
+        .isEqualTo(StatementOrigin.INFERRED);
+  }
+
+  @Test
+  void describeShouldMarkOntologyAxiomsAsOntologyRatherThanInferred() {
+    // the closure is only materialized once something has been approved
+    cortex.approve(
+        cortex
+            .ingest(
+                """
+                @prefix : <example://ontology#> .
+                @prefix kb: <example://kb/> .
+
+                kb:AxiomTask :assignedTo kb:AxiomAgent .
+                """)
+            .branch());
+
+    List<ProvenancedStatement> statements = cortex.describe("example://ontology#assignedTo");
+
+    assertThat(statements)
+        .as("the reasoner is bound to the ontology, so its axioms are visible through describe")
+        .isNotEmpty();
+    assertThat(originOf(statements, "http://www.w3.org/2000/01/rdf-schema#domain"))
+        .as("rdfs:domain comes verbatim from the ontology; it is not a reasoner conclusion")
+        .isEqualTo(StatementOrigin.ONTOLOGY);
+    assertThat(originOf(statements, "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"))
+        .as("the property's own declaration comes from the ontology too")
+        .isEqualTo(StatementOrigin.ONTOLOGY);
+    assertThat(statements)
+        .as("no ontology axiom is reported as approved")
+        .allMatch(statement -> statement.created() == null);
+  }
+
+  private StatementOrigin originOf(List<ProvenancedStatement> statements, String predicateUri) {
+    return statements.stream()
+        .filter(statement -> predicateUri.equals(statement.predicate().uri()))
+        .findFirst()
+        .orElseThrow()
+        .origin();
   }
 
   @Test

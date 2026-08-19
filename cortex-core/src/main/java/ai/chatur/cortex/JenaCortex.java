@@ -5,6 +5,7 @@ import ai.chatur.cortex.core.branch.BranchEditService;
 import ai.chatur.cortex.core.branch.BranchMergeService;
 import ai.chatur.cortex.core.branch.BranchQueryService;
 import ai.chatur.cortex.core.branch.BranchRepository;
+import ai.chatur.cortex.core.branch.MergeResult;
 import ai.chatur.cortex.core.inference.InferenceService;
 import ai.chatur.cortex.core.ingest.IngestService;
 import ai.chatur.cortex.core.lint.LintService;
@@ -12,7 +13,7 @@ import ai.chatur.cortex.core.ontology.OntologyService;
 import ai.chatur.cortex.core.query.QueryService;
 import ai.chatur.cortex.core.stats.StatsService;
 import java.util.List;
-import org.apache.jena.rdf.model.Model;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -104,6 +105,11 @@ public class JenaCortex implements Cortex {
   }
 
   @Override
+  public IngestResult revise(ResourceEdit edit) {
+    return ingestService.revise(edit);
+  }
+
+  @Override
   public List<String> listBranches() {
     return branchRepository.list();
   }
@@ -151,13 +157,19 @@ public class JenaCortex implements Cortex {
    * dataset the merge already committed to, so the closure is correct again even though the
    * incremental update failed — and then rethrows so the caller still learns the approval did not
    * complete cleanly.
+   *
+   * <p>A branch that retracted anything skips the incremental path entirely: {@link
+   * InferenceService#addInference} can only grow the closure, so a conclusion that no longer
+   * follows from the assertions would survive its own premises. Only {@link
+   * InferenceService#recomputeInference} can shrink it.
    */
   @Override
   public void approve(String branch) {
-    Model novel = branchMergeService.approve(branch);
-    if (novel == null) return;
+    MergeResult merged = branchMergeService.approve(branch);
+    if (merged == null) return;
     try {
-      inferenceService.addInference(novel);
+      if (merged.retracted()) inferenceService.recomputeInference();
+      else inferenceService.addInference(merged.added());
     } catch (RuntimeException e) {
       log.error(
           "Extending the inference closure after approving branch {} failed; recomputing it from"
@@ -192,6 +204,11 @@ public class JenaCortex implements Cortex {
   @Override
   public List<Term> getInstances(String type) {
     return queryService.getInstances(type);
+  }
+
+  @Override
+  public Map<String, Long> countInstances() {
+    return queryService.countInstances();
   }
 
   @Override

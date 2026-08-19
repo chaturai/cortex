@@ -2,6 +2,7 @@ package ai.chatur.cortex.core.branch;
 
 import ai.chatur.cortex.BranchChange;
 import ai.chatur.cortex.BranchRename;
+import ai.chatur.cortex.core.CortexNamespace;
 import ai.chatur.cortex.core.jena.DatasetPatch;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -45,6 +46,11 @@ public class BranchEditService {
    * <p>When the deletions remove every statement a subject carried, its IRI is gone from the
    * branch, so every staged statement referencing that IRI as object is deleted as well.
    *
+   * <p>A change flagged {@link BranchChange#retracted() retracted} addresses the statements the
+   * branch stages for <em>removal</em> from the approved assertions rather than those it stages for
+   * addition, and can only cancel one: a retraction has no object of its own to edit, because it
+   * names a statement that is already approved.
+   *
    * <p>Changes addressing the provenance activity of the branch are ignored.
    *
    * @param branch the branch name
@@ -56,6 +62,7 @@ public class BranchEditService {
         branch,
         "update",
         namedModel -> {
+          Node retractions = CortexNamespace.getRetractions(namedModel).asNode();
           Set<Node> deletionSubjects = new HashSet<>();
           DatasetPatch.apply(
               assertions,
@@ -67,14 +74,16 @@ public class BranchEditService {
                   }
                   Node subject = NodeFactory.createURI(change.subject());
                   Node predicate = NodeFactory.createURI(change.predicate());
-                  patch.delete(
-                      namedModel.asNode(), subject, predicate, toNode(change.object(), change));
+                  Node graph = change.retracted() ? retractions : namedModel.asNode();
+                  patch.delete(graph, subject, predicate, toNode(change.object(), change));
+                  if (change.retracted()) {
+                    if (change.newObject() != null) {
+                      log.warn("Ignoring edit to a statement branch {} stages for removal", branch);
+                    }
+                    continue;
+                  }
                   if (change.newObject() != null) {
-                    patch.add(
-                        namedModel.asNode(),
-                        subject,
-                        predicate,
-                        toNode(change.newObject(), change));
+                    patch.add(graph, subject, predicate, toNode(change.newObject(), change));
                   } else {
                     deletionSubjects.add(subject);
                   }
@@ -119,9 +128,9 @@ public class BranchEditService {
   /**
    * Renames subjects staged on the given branch, as an RDF patch on the branch graph.
    *
-   * <p>Every staged statement referencing a renamed IRI as object is rewritten to reference the new
-   * IRI; the statements describing the renamed subject — those carrying the IRI as subject — are
-   * removed rather than rewritten.
+   * <p>Every staged statement in which a renamed IRI appears is rewritten to use the new IRI, in
+   * both positions: the statements describing the renamed subject keep their content under the new
+   * IRI, and the statements referencing it as object come to reference the new IRI.
    *
    * <p>Renames addressing the provenance activity of the branch are ignored.
    *
@@ -159,13 +168,11 @@ public class BranchEditService {
                                 triple.getSubject(),
                                 triple.getPredicate(),
                                 triple.getObject());
-                            if (!renamed.containsKey(triple.getSubject())) {
-                              patch.add(
-                                  namedModel.asNode(),
-                                  triple.getSubject(),
-                                  triple.getPredicate(),
-                                  renamed.get(triple.getObject()));
-                            }
+                            patch.add(
+                                namedModel.asNode(),
+                                renamed.getOrDefault(triple.getSubject(), triple.getSubject()),
+                                triple.getPredicate(),
+                                renamed.getOrDefault(triple.getObject(), triple.getObject()));
                           }));
           log.info("Renamed {} subjects on branch {}", renamed.size(), branch);
           return true;
@@ -177,12 +184,19 @@ public class BranchEditService {
    * Builds the RDF node a reviewer-supplied value denotes: an IRI, or the appropriately typed
    * literal.
    *
+   * <p>A language tag wins over the datatype, because the datatype a language-tagged literal
+   * reports is {@code rdf:langString}, which cannot reconstruct the node on its own: building the
+   * literal from it produces a node that does not equal the one staged, so the deletion silently
+   * fails to match and the edit leaves the original statement in place.
+   *
    * @param value the IRI, or the literal's lexical form
-   * @param change the change describing whether {@code value} is a literal and its datatype
+   * @param change the change describing whether {@code value} is a literal, and its language tag or
+   *     datatype
    * @return the node {@code value} denotes
    */
   Node toNode(String value, BranchChange change) {
     if (!change.literal()) return NodeFactory.createURI(value);
+    if (change.language() != null) return NodeFactory.createLiteralLang(value, change.language());
     if (change.datatype() == null) return NodeFactory.createLiteralString(value);
     return NodeFactory.createLiteralDT(value, NodeFactory.getType(change.datatype()));
   }
